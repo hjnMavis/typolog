@@ -77,7 +77,6 @@ graph LR
 
     subgraph Static["정적"]
         Login["로그인"]
-        Profile["프로필"]
     end
 ```
 
@@ -86,11 +85,10 @@ graph LR
 | 홈 (`/`) | SSR | 오늘의 챌린지 데이터를 서버에서 fetch |
 | 글자 수집 (`/challenge/[id]`) | CSR 중심 | 카메라, Canvas 등 브라우저 API 집중 사용 |
 | 콜라주 미리보기 (`/challenge/[id]/preview`) | CSR | Canvas 렌더링 |
-| 피드 (`/feed`) | SSR + CSR hydration | 초기 데이터는 서버, 이후 무한스크롤은 클라이언트 |
-| 내 콜라주 (`/my`) | SSR + CSR hydration | 초기 목록은 서버, 이후 인터랙션은 클라이언트 |
-| 공유 (`/share/[id]`) | SSR | OG 메타태그를 위해 서버 렌더링 필수 |
+| 오늘의 피드 (`/feed/today`) | SSR + CSR hydration | 초기 데이터는 서버, 이후 무한스크롤은 클라이언트 |
+| 유저 프로필 (`/u/[handle]`) | SSR + CSR hydration | 유저의 공개 콜라주 목록 |
+| 공유 (`/s/[id]`) | SSR | OG 메타태그를 위해 서버 렌더링 필수 |
 | 로그인 (`/login`) | 정적 | OAuth 버튼만 표시 |
-| 프로필 (`/profile`) | 정적 | 닉네임 수정 폼 |
 
 ### 상태 관리 경계
 
@@ -306,7 +304,7 @@ sequenceDiagram
 1. **Supabase Auth**가 세션을 관리 (JWT 기반, 쿠키 저장)
 2. **Next.js Middleware**가 보호 페이지 접근 시 세션 유무를 확인
 3. **RLS (Row Level Security)** 가 DB 레벨에서 데이터 접근을 제어
-4. 비인증 접근 가능: `/login`, `/share/[id]`, `/api/og/[id]`, `/api/challenges/today`
+4. 비인증 접근 가능: `/login`, `/s/[id]`, `/api/og/[id]`, `/api/challenges/today`
 
 ### 페이지별 인증 요구사항
 
@@ -316,7 +314,7 @@ sequenceDiagram
 | `/` (홈) | O | 챌린지 시작을 위해 |
 | `/challenge/[id]` | O | 글자 수집/저장 |
 | `/challenge/[id]/preview` | O | 콜라주 생성/제출 |
-| `/feed` | O | 좋아요 기능 (조회만은 비인증 가능하나 MVP에서는 인증 필수) |
-| `/my` | O | 내 콜라주 목록 |
-| `/profile` | O | 프로필 수정 |
-| `/share/[id]` | X | 공유 링크는 누구나 접근 가능 |
+| `/feed/today` | O | 좋아요 기능 (조회만은 비인증 가능하나 MVP에서는 인증 필수) |
+| `/u/[handle]` | 조건부 | 공개 프로필은 비인증 열람 가능, 본인 수정은 인증 필요 |
+| `/s/[id]` | X | 공유 링크는 누구나 접근 가능 |
+| `/admin/challenges` | O | 관리자만 접근 |

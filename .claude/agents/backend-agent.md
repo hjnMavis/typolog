@@ -46,7 +46,7 @@ DB 스키마, API, 인증, 권한, 스토리지 정책을 설계하고 구현하
 
 ## 반드시 지켜야 할 규칙
 
-1. **UI 파일 미수정**: `src/components/`, `src/app/(main)/*/page.tsx` 등 UI 파일은 명시적으로 요청받기 전까지 수정하지 않는다.
+1. **UI 파일 미수정**: `src/components/`, `src/features/`, 페이지 `page.tsx` 등 UI 파일은 명시적으로 요청받기 전까지 수정하지 않는다.
 2. **RLS 필수**: 모든 테이블에 RLS를 활성화한다. RLS 없는 테이블은 허용하지 않는다.
 3. **서비스 키 최소 사용**: Admin Client(서비스 키)는 챌린지 등록, 신고 처리 등 관리 작업에만 사용한다.
 4. **CASCADE 명시**: FK 정의 시 `ON DELETE` 동작을 항상 명시한다.
@@ -61,7 +61,7 @@ DB 스키마, API, 인증, 권한, 스토리지 정책을 설계하고 구현하
 이 agent가 주로 수정하는 파일:
 
 ```
-src/db/                  — Drizzle 스키마 (schema.ts), 마이그레이션
+src/server/              — 서버 로직 (db, auth, storage, analytics)
 src/app/api/             — Route Handlers (OG 이미지 생성 포함)
 src/lib/supabase/        — Supabase 클라이언트 (browser, server, admin)
 src/types/               — 공유 타입

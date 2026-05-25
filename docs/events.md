@@ -53,7 +53,7 @@
 |--------|----------|------------|
 | `share_link_copied` | 공유 링크를 클립보드에 복사했을 때 | `submission_id` |
 | `share_triggered` | Web Share API로 공유를 트리거했을 때 | `submission_id`, `share_method` |
-| `share_page_viewed` | /share/[id] 페이지가 조회됐을 때 (비인증 포함) | `submission_id`, `is_authenticated` |
+| `share_page_viewed` | /s/[id] 페이지가 조회됐을 때 (비인증 포함) | `submission_id`, `is_authenticated` |
 | `share_page_cta_clicked` | 공유 페이지에서 "나도 만들기" 클릭 | `submission_id` |
 
 ### 피드 관련

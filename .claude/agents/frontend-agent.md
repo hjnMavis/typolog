@@ -60,14 +60,13 @@ tools:
 이 agent가 주로 수정하는 파일:
 
 ```
-src/app/(auth)/          — 로그인 관련 페이지
-src/app/(main)/          — 메인 앱 페이지
-src/app/share/           — 공유 페이지
+src/app/                 — 페이지 (/, /challenge, /feed/today, /s, /u, /admin)
 src/components/          — 모든 UI 컴포넌트
+src/features/            — feature 모듈 (challenge, capture, compose, feed, profile)
 src/stores/              — Zustand stores
 src/hooks/               — 커스텀 hooks
 src/lib/canvas/          — crop, collage 유틸
-src/lib/utils/           — 클라이언트 유틸 (EXIF strip 등)
+src/lib/utils/           — 클라이언트 유틸 (EXIF strip, 문장 파서 등)
 ```
 
 ## 출력 형식

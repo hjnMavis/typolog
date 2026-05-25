@@ -49,9 +49,9 @@ Phase 0의 작업 (프로젝트 생성, 패키지 설치, ESLint, Vercel 연결 
 
 ```
 Frontend Agent:
-  src/app/(auth)/, src/app/(main)/, src/app/share/
+  src/app/ (페이지: /, /challenge, /feed, /s, /u)
   src/components/, src/stores/, src/hooks/
-  src/lib/canvas/, src/lib/utils/
+  src/features/, src/lib/canvas/, src/lib/utils/
 
 Backend Agent:
   src/app/api/ (OG 이미지 포함), src/db/, src/lib/supabase/, src/types/
