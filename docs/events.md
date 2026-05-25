@@ -77,8 +77,8 @@
 | 이벤트 | 발생 시점 | Properties |
 |--------|----------|------------|
 | `login_started` | 로그인 버튼을 클릭했을 때 | `provider` ("google" / "kakao") |
-| `login_completed` | 로그인 성공 콜백 처리됐을 때 | `provider`, `is_new_user` |
-| `logout` | 로그아웃했을 때 | — |
+| `login_completed` | 로그인 성공 콜백 처리됐을 때 | `provider`, `is_new_user` (profiles 테이블에 해당 uid 레코드가 방금 trigger로 생성되었으면 true) |
+| `auth_logout` | 로그아웃했을 때 | — |
 
 ## Properties 예시
 

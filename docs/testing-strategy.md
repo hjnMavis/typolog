@@ -37,11 +37,11 @@ MVP에서는 **핵심 UX와 보안에 직접 영향을 주는 부분**만 테스
 
 | 모듈 | 테스트 내용 | 우선순위 |
 |------|-----------|---------|
-| `lib/canvas/crop.ts` | crop 좌표 계산, 이미지 리사이즈, WebP 변환 | 높음 |
-| `lib/canvas/collage.ts` | 글자 배치 계산, 콜라주 레이아웃 로직 | 높음 |
-| `lib/utils/exif-strip.ts` | EXIF 메타데이터 제거 확인 | 높음 |
-| `lib/utils/image-validate.ts` | 파일 타입 검증, 크기 제한 검증 | 높음 |
-| `stores/challenge-store.ts` | Zustand 상태 전이 (슬롯 채우기, 교체, 초기화) | 중간 |
+| `src/lib/canvas/crop.ts` | crop 좌표 계산, 이미지 리사이즈, WebP 변환 | 높음 |
+| `src/lib/canvas/collage.ts` | 글자 배치 계산, 콜라주 레이아웃 로직 | 높음 |
+| `src/lib/utils/exif-strip.ts` | EXIF 메타데이터 제거 확인 | 높음 |
+| `src/lib/utils/image-validate.ts` | 파일 타입 검증, 크기 제한 검증 | 높음 |
+| `src/stores/challenge-store.ts` | Zustand 상태 전이 (슬롯 채우기, 교체, 초기화) | 중간 |
 | zod 스키마 | API 요청/응답 validation | 중간 |
 | 날짜 유틸 | 오늘의 챌린지 날짜 결정, 타임존 처리 | 중간 |
 
@@ -91,7 +91,7 @@ MVP에서는 **핵심 UX와 보안에 직접 영향을 주는 부분**만 테스
 ### 테스트 접근법
 
 - React Testing Library의 `render` + `userEvent` 사용
-- Canvas API가 필요한 컴포넌트는 `jest-canvas-mock` 또는 로직을 유틸로 분리하여 개별 테스트
+- Canvas API가 필요한 컴포넌트는 `vitest-canvas-mock` 또는 로직을 유틸로 분리하여 개별 테스트
 - TanStack Query 의존 컴포넌트는 `QueryClientProvider` wrapper 사용
 - Supabase 호출은 MSW로 mock
 
@@ -112,8 +112,9 @@ MVP에서는 **핵심 UX와 보안에 직접 영향을 주는 부분**만 테스
 | E2E-3 | 모든 슬롯 채우기 → 미리보기 → 콜라주 완성 → 제출 | 높음 |
 | E2E-4 | 피드 조회 → 좋아요 → 좋아요 취소 | 중간 |
 | E2E-5 | 공유 링크 접근 (비인증) → 콜라주 확인 → "나도 만들기" 클릭 | 중간 |
-| E2E-6 | 신고하기 플로우 | 낮음 |
-| E2E-7 | 프로필 닉네임 수정 | 낮음 |
+| E2E-6 | 이미 채운 슬롯 터치 → 글자 교체 → 교체된 이미지 확인 | 중간 |
+| E2E-7 | 신고하기 플로우 | 낮음 |
+| E2E-8 | 프로필 닉네임 수정 | 낮음 |
 
 ### Playwright 설정 방향
 

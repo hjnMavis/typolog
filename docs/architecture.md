@@ -87,8 +87,10 @@ graph LR
 | 글자 수집 (`/challenge/[id]`) | CSR 중심 | 카메라, Canvas 등 브라우저 API 집중 사용 |
 | 콜라주 미리보기 (`/challenge/[id]/preview`) | CSR | Canvas 렌더링 |
 | 피드 (`/feed`) | SSR + CSR hydration | 초기 데이터는 서버, 이후 무한스크롤은 클라이언트 |
+| 내 콜라주 (`/my`) | SSR + CSR hydration | 초기 목록은 서버, 이후 인터랙션은 클라이언트 |
 | 공유 (`/share/[id]`) | SSR | OG 메타태그를 위해 서버 렌더링 필수 |
 | 로그인 (`/login`) | 정적 | OAuth 버튼만 표시 |
+| 프로필 (`/profile`) | 정적 | 닉네임 수정 폼 |
 
 ### 상태 관리 경계
 
@@ -129,7 +131,9 @@ Next.js Route Handlers와 Server Actions를 혼합 사용한다.
 ```
 src/app/api/
 ├── challenges/
-│   └── route.ts          # GET: 오늘의 챌린지
+│   ├── route.ts          # GET: 챌린지 목록 (향후)
+│   └── today/
+│       └── route.ts      # GET: 오늘의 챌린지
 ├── submissions/
 │   ├── route.ts          # POST: 새 제출 생성
 │   └── [id]/
@@ -144,7 +148,7 @@ src/app/api/
 │   └── route.ts          # POST: 좋아요 토글
 ├── reports/
 │   └── route.ts          # POST: 신고
-├── profile/
+├── profiles/
 │   └── route.ts          # PATCH: 프로필 수정
 └── og/
     └── [id]/
@@ -189,7 +193,7 @@ graph LR
 ### Drizzle ORM 연동
 
 ```
-Drizzle Schema (db/schema.ts)
+Drizzle Schema (src/db/schema.ts)
   ↓ 타입 생성
 TypeScript Types
   ↓ 사용
@@ -212,7 +216,7 @@ Supabase Storage
 │           ├── 0.webp      (slot_index별)
 │           ├── 1.webp
 │           └── ...
-├── collages/               (조건부 Public)
+├── collages/               (Private — RLS 정책으로 공개 제출만 접근 허용)
 │   └── {user_id}/
 │       └── {submission_id}/
 │           └── collage.png
@@ -302,7 +306,7 @@ sequenceDiagram
 1. **Supabase Auth**가 세션을 관리 (JWT 기반, 쿠키 저장)
 2. **Next.js Middleware**가 보호 페이지 접근 시 세션 유무를 확인
 3. **RLS (Row Level Security)** 가 DB 레벨에서 데이터 접근을 제어
-4. 비인증 접근 가능: `/login`, `/share/[id]`, `/api/og/[id]`, `/api/challenges`
+4. 비인증 접근 가능: `/login`, `/share/[id]`, `/api/og/[id]`, `/api/challenges/today`
 
 ### 페이지별 인증 요구사항
 

@@ -31,11 +31,12 @@
 | `strictNullChecks` | 모든 코드에서 null/undefined 처리 | [ ] |
 | 타입 추론 vs 명시적 타입 선언 | 변수, 함수 반환값 | [ ] |
 
-### Tailwind CSS
+### Tailwind CSS v4
 
 | 개념 | 프로젝트에서 쓰이는 곳 | 상태 |
 |------|---------------------|------|
 | 유틸리티 퍼스트 접근법 | 모든 UI 컴포넌트 | [ ] |
+| v4의 CSS-first 설정 방식 (tailwind.config.ts 대신 CSS에서 설정) | 프로젝트 초기 설정 | [ ] |
 | 반응형 디자인 (`sm:`, `md:`, `lg:`) | 모바일 우선 레이아웃 | [ ] |
 | `cn()` 유틸과 조건부 클래스 | shadcn/ui 컴포넌트 커스터마이즈 | [ ] |
 
@@ -124,7 +125,7 @@
 | 개념 | 프로젝트에서 쓰이는 곳 | 상태 |
 |------|---------------------|------|
 | ORM이란 무엇이고 왜 쓰는가 | DB 접근 전체 | [ ] |
-| Drizzle 스키마 정의 방법 | `db/schema.ts` | [ ] |
+| Drizzle 스키마 정의 방법 | `src/db/schema.ts` | [ ] |
 | 마이그레이션이란 무엇이고 왜 필요한가 | DB 스키마 변경 관리 | [ ] |
 | 타입 안전한 쿼리 빌더 | SELECT, INSERT, UPDATE | [ ] |
 | 관계(relation) 정의와 조인 | submission + user 정보 함께 조회 | [ ] |
@@ -187,6 +188,14 @@
 | `'use server'` 지시어 | Server Action 함수 | [ ] |
 | Route Handler와의 차이점과 선택 기준 | API 설계 | [ ] |
 | progressive enhancement | JS 없이도 form이 동작하는가 | [ ] |
+
+### react-hook-form + zod
+
+| 개념 | 프로젝트에서 쓰이는 곳 | 상태 |
+|------|---------------------|------|
+| react-hook-form의 기본 사용법 (register, handleSubmit) | 프로필 수정 폼, 신고 사유 입력 | [ ] |
+| zod 스키마 정의와 타입 추론 | API 요청/응답 validation, 폼 validation | [ ] |
+| zod + react-hook-form 연동 (@hookform/resolvers) | 클라이언트/서버 validation 로직 공유 | [ ] |
 
 ---
 
@@ -267,7 +276,8 @@
 ├── TanStack Query (특히 infinite query, optimistic update)
 ├── Cursor pagination
 ├── OG 이미지
-└── Server Actions
+├── Server Actions
+└── react-hook-form + zod (폼 validation)
 
 4주차 필요 (Phase 4)
 ├── Vitest + React Testing Library

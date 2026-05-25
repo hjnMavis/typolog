@@ -66,7 +66,7 @@ Supabase Auth의 `auth.users`를 확장하는 공개 프로필 테이블.
 | 필드 | 타입 | 제약조건 | 설명 |
 |------|------|---------|------|
 | `id` | UUID | PK, DEFAULT gen_random_uuid() | |
-| `user_id` | UUID | FK → profiles(id), NOT NULL | 작성자 |
+| `user_id` | UUID | FK → profiles(id) ON DELETE CASCADE, NOT NULL | 작성자 |
 | `challenge_id` | UUID | FK → challenges(id), NOT NULL | 대상 챌린지 |
 | `status` | TEXT | NOT NULL, DEFAULT 'draft' | 'draft' / 'completed' / 'hidden' |
 | `is_public` | BOOLEAN | DEFAULT true | 피드 공개 여부 |
@@ -143,10 +143,10 @@ stateDiagram-v2
 | `created_at` | TIMESTAMPTZ | DEFAULT now() | |
 
 **제약조건**:
-- `UNIQUE (user_id, submission_id)` — 같은 제출에 중복 좋아요 불가
+- `UNIQUE (user_id, submission_id)` — MVP에서는 'like'만이므로 이 제약으로 충분. 향후 이모지 반응 확장 시 `UNIQUE (user_id, submission_id, type)`으로 변경 필요
 
 **설계 판단**:
-- `type` 필드를 두어 나중에 이모지 반응 등으로 확장 가능. MVP에서는 'like'만
+- `type` 필드를 두어 나중에 이모지 반응 등으로 확장 가능. MVP에서는 'like'만. 확장 시 UNIQUE 제약조건도 함께 마이그레이션 필요
 - 좋아요 취소 = 레코드 DELETE (토글)
 - 자신의 제출에도 좋아요 가능 (제한하지 않음)
 
@@ -163,8 +163,8 @@ stateDiagram-v2
 | 필드 | 타입 | 제약조건 | 설명 |
 |------|------|---------|------|
 | `id` | UUID | PK, DEFAULT gen_random_uuid() | |
-| `reporter_id` | UUID | FK → profiles(id), NOT NULL | 신고한 사람 |
-| `submission_id` | UUID | FK → submissions(id), NOT NULL | 신고 대상 |
+| `reporter_id` | UUID | FK → profiles(id) ON DELETE CASCADE, NOT NULL | 신고한 사람 |
+| `submission_id` | UUID | FK → submissions(id) ON DELETE CASCADE, NOT NULL | 신고 대상 |
 | `reason` | TEXT | NOT NULL | 신고 사유 |
 | `created_at` | TIMESTAMPTZ | DEFAULT now() | |
 
@@ -209,8 +209,8 @@ profiles 1:N reports          (한 사용자가 여러 신고)
 ```
 
 **무결성 규칙**:
-- `submissions` 삭제 시 → `letter_pieces`, `reactions` CASCADE 삭제
-- `profiles` 삭제 시 → `submissions`, `reactions` CASCADE 삭제
+- `submissions` 삭제 시 → `letter_pieces`, `reactions`, `reports` CASCADE 삭제
+- `profiles` 삭제 시 → `submissions`, `reactions`, `reports` CASCADE 삭제
 - `challenges`는 삭제하지 않음 (아카이브)
 
 ## 인덱스 전략
@@ -219,9 +219,9 @@ profiles 1:N reports          (한 사용자가 여러 신고)
 -- 오늘의 챌린지 빠른 조회
 CREATE INDEX idx_challenges_active_date ON challenges(active_date);
 
--- 피드 쿼리: 특정 챌린지의 공개 완성 제출
+-- 피드 쿼리: 특정 챌린지의 공개 완성 제출 (cursor pagination용 id 포함)
 CREATE INDEX idx_submissions_feed
-  ON submissions(challenge_id, created_at DESC)
+  ON submissions(challenge_id, created_at DESC, id)
   WHERE status = 'completed' AND is_public = true;
 
 -- 사용자별 제출 목록
