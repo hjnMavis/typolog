@@ -1,0 +1,88 @@
+# Typolog — Project Rules
+
+## 프로젝트 개요
+
+- **서비스명**: Typolog (Typography + Log)
+- **한 줄 요약**: 같은 문장을, 각자의 일상에서 전혀 다르게 완성하는 글자 콜라주 앱
+- **플랫폼**: 모바일 웹 (모바일 우선)
+- **현재 상태**: Phase 0 완료, Phase 1 (Mock 기반 핵심 UX) 진행 예정
+
+## 기술 스택
+
+| 역할 | 기술 |
+|------|------|
+| Framework | Next.js 15 App Router (Turbopack) |
+| Language | TypeScript (strict) |
+| Styling | Tailwind CSS v4 + shadcn/ui |
+| Client State | Zustand (persist middleware) |
+| Image Crop | react-easy-crop |
+| Test | Vitest |
+| Package Manager | pnpm |
+| Deploy | Vercel (예정) |
+
+## 코딩 컨벤션
+
+- **설명은 한국어**, 코드/파일명/커밋 메시지는 **영어**
+- TypeScript strict — `any` 사용 금지
+- 경로 alias: `@/` → `src/`
+- 컴포넌트: PascalCase (`LetterSlot.tsx`)
+- 유틸/상수: camelCase (`sentenceParser.ts`)
+- 디렉토리: kebab-case 또는 camelCase (일관성 유지)
+
+## 폴더 구조
+
+```
+src/
+├── app/                   — Next.js App Router 페이지
+├── components/ui/         — shadcn/ui 기본 컴포넌트
+├── features/              — 도메인별 feature 모듈
+├── lib/                   — 유틸, 상수, Canvas 유틸
+├── stores/                — Zustand stores
+├── hooks/                 — 커스텀 React hooks
+├── types/                 — 공유 타입 정의
+└── server/                — 서버 전용 코드 (Week 2~)
+```
+
+## 라우트 구조
+
+```
+/                          — 홈 (오늘의 챌린지)
+/challenge/[id]            — 글자 수집
+/challenge/[id]/preview    — 콜라주 미리보기
+/feed/today                — 오늘의 피드
+/s/[id]                    — 공유 (비인증)
+/u/[handle]                — 유저 프로필
+/admin/challenges          — 챌린지 관리
+```
+
+## 개발 원칙
+
+1. 한 번에 5개 이상 파일을 수정하지 않는다
+2. 큰 기능은 작은 태스크로 쪼갠다
+3. 작업 전에는 변경 계획을 먼저 제안한다
+4. 승인 없이 대규모 변경을 하지 않는다
+5. 보안/개인정보/이미지 공개 범위를 항상 고려한다
+6. Mock-first: Supabase 연동 전에 mock 데이터로 UX를 먼저 검증한다
+
+## 현재 Phase
+
+**Phase 1: Mock 기반 핵심 UX** (Week 1)
+- 서버 없이 localStorage + mock 데이터로 핵심 플로우 완성
+- 카메라 → crop → 슬롯 저장 → 콜라주 → PNG 다운로드
+
+## 주요 명령어
+
+```bash
+pnpm dev          # 개발 서버 (Turbopack)
+pnpm build        # 프로덕션 빌드
+pnpm lint         # ESLint
+pnpm type-check   # TypeScript 타입 체크
+pnpm test         # Vitest (watch mode)
+pnpm test:run     # Vitest (single run)
+```
+
+## Agent 규칙
+
+- Agent 정의: `.claude/agents/`
+- 같은 파일을 두 agent가 동시에 수정하지 않는다
+- production 코드 수정 전 계획을 먼저 제안한다
