@@ -75,6 +75,11 @@ export const useChallengeStore = create<ChallengeStore>()(
           isComplete: false,
         }),
     }),
-    { name: "typolog-challenge" }
+    {
+      name: "typolog-challenge",
+      partialize: (state) => ({
+        challengeId: state.challengeId,
+      }),
+    }
   )
 )
