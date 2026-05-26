@@ -2,3 +2,4 @@ export { MOCK_CHALLENGES, getTodayChallenge, findChallengeById } from "@/lib/con
 export { useChallengeStore } from "@/stores/challenge-store"
 export { CaptureClient } from "./CaptureClient"
 export { LetterSlot } from "./LetterSlot"
+export { ImagePickerSheet } from "./ImagePickerSheet"
