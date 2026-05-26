@@ -15,5 +15,6 @@ export interface LetterSlot {
 export interface ChallengeState {
   challengeId: string | null
   slots: LetterSlot[]
+  activeSlotIndex: number | null
   isComplete: boolean
 }

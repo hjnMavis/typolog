@@ -1,19 +1,32 @@
 import type { Challenge } from "@/types"
+import { parseSentence } from "@/lib/utils/sentence-parser"
+
+function challenge(id: string, sentence: string, activeDate: string): Challenge {
+  return { id, sentence, letters: parseSentence(sentence), activeDate }
+}
 
 export const MOCK_CHALLENGES: Challenge[] = [
-  { id: "1", sentence: "오늘도 화이팅", letters: ["오", "늘", "도", "화", "이", "팅"], activeDate: "2026-05-26" },
-  { id: "2", sentence: "참 좋은 날", letters: ["참", "좋", "은", "날"], activeDate: "2026-05-27" },
-  { id: "3", sentence: "어서 오세요", letters: ["어", "서", "오", "세", "요"], activeDate: "2026-05-28" },
-  { id: "4", sentence: "오늘 뭐 먹지", letters: ["오", "늘", "뭐", "먹", "지"], activeDate: "2026-05-29" },
-  { id: "5", sentence: "좋아하는 것", letters: ["좋", "아", "하", "는", "것"], activeDate: "2026-05-30" },
-  { id: "6", sentence: "잘 지내고 있어", letters: ["잘", "지", "내", "고", "있", "어"], activeDate: "2026-05-31" },
-  { id: "7", sentence: "오늘의 기분", letters: ["오", "늘", "의", "기", "분"], activeDate: "2026-06-01" },
-  { id: "8", sentence: "우리 동네 맛집", letters: ["우", "리", "동", "네", "맛", "집"], activeDate: "2026-06-02" },
-  { id: "9", sentence: "오늘 참 수고했어", letters: ["오", "늘", "참", "수", "고", "했", "어"], activeDate: "2026-06-03" },
-  { id: "10", sentence: "이 순간을 기억해", letters: ["이", "순", "간", "을", "기", "억", "해"], activeDate: "2026-06-04" },
+  challenge("1", "오늘도 화이팅", "2026-05-26"),
+  challenge("2", "참 좋은 날", "2026-05-27"),
+  challenge("3", "어서 오세요", "2026-05-28"),
+  challenge("4", "오늘 뭐 먹지", "2026-05-29"),
+  challenge("5", "좋아하는 것", "2026-05-30"),
+  challenge("6", "잘 지내고 있어", "2026-05-31"),
+  challenge("7", "오늘의 기분", "2026-06-01"),
+  challenge("8", "우리 동네 맛집", "2026-06-02"),
+  challenge("9", "오늘 참 수고했어", "2026-06-03"),
+  challenge("10", "이 순간을 기억해", "2026-06-04"),
 ]
 
+export function getKSTDateString(): string {
+  return new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" })
+}
+
 export function getTodayChallenge(): Challenge {
-  const today = new Date().toISOString().split("T")[0]
+  const today = getKSTDateString()
   return MOCK_CHALLENGES.find((c) => c.activeDate === today) ?? MOCK_CHALLENGES[0]
+}
+
+export function findChallengeById(id: string): Challenge | undefined {
+  return MOCK_CHALLENGES.find((c) => c.id === id)
 }
