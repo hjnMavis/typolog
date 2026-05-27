@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useChallengeStore } from "@/stores/challenge-store"
 import { LetterSlot } from "./LetterSlot"
 import { ImagePickerSheet } from "./ImagePickerSheet"
+import { ImageCropperModal } from "./ImageCropperModal"
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { Challenge } from "@/types"
@@ -25,7 +26,12 @@ export function CaptureClient({ challenge }: CaptureClientProps) {
   } = useChallengeStore()
 
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [cropperOpen, setCropperOpen] = useState(false)
+  const [cropSourceUrl, setCropSourceUrl] = useState<string | null>(null)
+
   const objectUrlsRef = useRef<Map<number, string>>(new Map())
+  const cropSourceUrlRef = useRef<string | null>(null)
+  const transitionToCropperRef = useRef(false)
 
   useEffect(() => {
     initSlots(challenge)
@@ -34,14 +40,20 @@ export function CaptureClient({ challenge }: CaptureClientProps) {
 
   useEffect(() => {
     const urls = objectUrlsRef.current
+    const sourceRef = cropSourceUrlRef
     return () => {
       urls.forEach((url) => URL.revokeObjectURL(url))
       urls.clear()
+      if (sourceRef.current) {
+        URL.revokeObjectURL(sourceRef.current)
+        sourceRef.current = null
+      }
     }
   }, [challenge.id])
 
   const handleSlotTap = useCallback(
     (index: number) => {
+      if (cropperOpen) return
       if (activeSlotIndex === index) {
         deselectSlot()
         setSheetOpen(false)
@@ -50,31 +62,63 @@ export function CaptureClient({ challenge }: CaptureClientProps) {
         setSheetOpen(true)
       }
     },
-    [activeSlotIndex, selectSlot, deselectSlot]
+    [activeSlotIndex, selectSlot, deselectSlot, cropperOpen]
   )
 
   const handleSheetOpenChange = useCallback(
     (open: boolean) => {
       setSheetOpen(open)
-      if (!open) deselectSlot()
+      if (!open && !transitionToCropperRef.current) {
+        deselectSlot()
+      }
+      transitionToCropperRef.current = false
     },
     [deselectSlot]
   )
 
-  const handleImageSelected = useCallback(
+  const handleFileSelected = useCallback(
     (file: File) => {
+      if (activeSlotIndex === null) return
+      transitionToCropperRef.current = true
+      const url = URL.createObjectURL(file)
+      cropSourceUrlRef.current = url
+      setCropSourceUrl(url)
+      setSheetOpen(false)
+      setCropperOpen(true)
+    },
+    [activeSlotIndex]
+  )
+
+  const handleCropConfirm = useCallback(
+    (croppedBlob: Blob) => {
       if (activeSlotIndex === null) return
 
       const oldUrl = objectUrlsRef.current.get(activeSlotIndex)
       if (oldUrl) URL.revokeObjectURL(oldUrl)
 
-      const objectUrl = URL.createObjectURL(file)
-      objectUrlsRef.current.set(activeSlotIndex, objectUrl)
-      fillSlot(activeSlotIndex, objectUrl)
-      setSheetOpen(false)
+      const croppedUrl = URL.createObjectURL(croppedBlob)
+      objectUrlsRef.current.set(activeSlotIndex, croppedUrl)
+      fillSlot(activeSlotIndex, croppedUrl)
+
+      if (cropSourceUrlRef.current) {
+        URL.revokeObjectURL(cropSourceUrlRef.current)
+        cropSourceUrlRef.current = null
+      }
+      setCropSourceUrl(null)
+      setCropperOpen(false)
     },
     [activeSlotIndex, fillSlot]
   )
+
+  const handleCropCancel = useCallback(() => {
+    if (cropSourceUrlRef.current) {
+      URL.revokeObjectURL(cropSourceUrlRef.current)
+      cropSourceUrlRef.current = null
+    }
+    setCropSourceUrl(null)
+    setCropperOpen(false)
+    deselectSlot()
+  }, [deselectSlot])
 
   const filledCount = slots.filter((s) => s.status === "filled").length
   const totalCount = slots.length
@@ -171,8 +215,19 @@ export function CaptureClient({ challenge }: CaptureClientProps) {
         open={sheetOpen}
         onOpenChange={handleSheetOpenChange}
         character={activeCharacter}
-        onImageSelected={handleImageSelected}
+        onImageSelected={handleFileSelected}
       />
+
+      {/* 이미지 크롭 모달 */}
+      {cropSourceUrl && activeCharacter && (
+        <ImageCropperModal
+          open={cropperOpen}
+          imageSrc={cropSourceUrl}
+          character={activeCharacter}
+          onCropComplete={handleCropConfirm}
+          onCancel={handleCropCancel}
+        />
+      )}
     </div>
   )
 }
