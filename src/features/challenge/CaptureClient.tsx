@@ -8,6 +8,11 @@ import { ImagePickerSheet } from "./ImagePickerSheet"
 import { ImageCropperModal } from "./ImageCropperModal"
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import {
+  saveImageBlob,
+  getImageBlob,
+  deleteImageBlobs,
+} from "@/lib/image/indexed-image-store"
 import type { Challenge } from "@/types"
 
 interface CaptureClientProps {
@@ -23,21 +28,61 @@ export function CaptureClient({ challenge }: CaptureClientProps) {
     selectSlot,
     deselectSlot,
     fillSlot,
+    setSlotImageUrl,
+    resetDraft,
   } = useChallengeStore()
 
   const [sheetOpen, setSheetOpen] = useState(false)
   const [cropperOpen, setCropperOpen] = useState(false)
   const [cropSourceUrl, setCropSourceUrl] = useState<string | null>(null)
+  /** User-facing error message when IDB save fails */
+  const [saveError, setSaveError] = useState<string | null>(null)
 
+  /** Map from slotIndex → live Object URL (runtime-only, never persisted) */
   const objectUrlsRef = useRef<Map<number, string>>(new Map())
   const cropSourceUrlRef = useRef<string | null>(null)
   const transitionToCropperRef = useRef(false)
 
+  // Init slots (idempotent guard is inside the store)
   useEffect(() => {
     initSlots(challenge)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- challenge.id가 바뀔 때만 재초기화
   }, [challenge.id, initSlots])
 
+  // Restore Object URLs from IDB when persisted metadata is available
+  useEffect(() => {
+    let isMounted = true
+
+    const restore = async () => {
+      const currentSlots = useChallengeStore.getState().slots
+      for (const slot of currentSlots) {
+        // Note: rehydrated slots may carry `undefined` (partialize omits the key),
+        // so use a truthy check rather than `=== null`.
+        if (slot.status === "filled" && slot.imageKey && !slot.imageDataUrl) {
+          try {
+            const blob = await getImageBlob(slot.imageKey)
+            if (!isMounted) return
+            if (blob) {
+              const url = URL.createObjectURL(blob)
+              objectUrlsRef.current.set(slot.index, url)
+              setSlotImageUrl(slot.index, url)
+            }
+            // If blob is null (IDB missing), slot shows character fallback — acceptable
+          } catch {
+            // Non-critical: leave slot showing character fallback
+          }
+        }
+      }
+    }
+
+    restore()
+
+    return () => {
+      isMounted = false
+    }
+  }, [challenge.id, setSlotImageUrl])
+
+  // Revoke all Object URLs on unmount or challenge change
   useEffect(() => {
     const urls = objectUrlsRef.current
     const sourceRef = cropSourceUrlRef
@@ -54,6 +99,7 @@ export function CaptureClient({ challenge }: CaptureClientProps) {
   const handleSlotTap = useCallback(
     (index: number) => {
       if (cropperOpen) return
+      setSaveError(null)
       if (activeSlotIndex === index) {
         deselectSlot()
         setSheetOpen(false)
@@ -89,16 +135,47 @@ export function CaptureClient({ challenge }: CaptureClientProps) {
     [activeSlotIndex]
   )
 
+  /**
+   * imageKey scheme: `${challengeId}:${slotIndex}` — deterministic so replacing
+   * a slot is an idempotent overwrite with no orphan Blobs.
+   */
   const handleCropConfirm = useCallback(
-    (croppedBlob: Blob) => {
+    async (croppedBlob: Blob) => {
       if (activeSlotIndex === null) return
 
+      // Deterministic key — overwrite is safe, no orphan accumulation
+      const imageKey = `${challenge.id}:${activeSlotIndex}`
+      const fileType = croppedBlob.type || "image/png"
+      const ext = fileType.split("/")[1] ?? "png"
+      const fileName = `${activeSlotIndex}.${ext}`
+
+      // Revoke old Object URL for this slot
       const oldUrl = objectUrlsRef.current.get(activeSlotIndex)
       if (oldUrl) URL.revokeObjectURL(oldUrl)
 
+      try {
+        await saveImageBlob(imageKey, croppedBlob)
+      } catch (err) {
+        // IDB unavailable — show error, do NOT mark slot as filled
+        const message =
+          err instanceof Error
+            ? err.message
+            : "이미지를 저장할 수 없습니다."
+        setSaveError(message)
+        // Still clean up the crop source URL
+        if (cropSourceUrlRef.current) {
+          URL.revokeObjectURL(cropSourceUrlRef.current)
+          cropSourceUrlRef.current = null
+        }
+        setCropSourceUrl(null)
+        setCropperOpen(false)
+        return
+      }
+
+      setSaveError(null)
       const croppedUrl = URL.createObjectURL(croppedBlob)
       objectUrlsRef.current.set(activeSlotIndex, croppedUrl)
-      fillSlot(activeSlotIndex, croppedUrl)
+      fillSlot(activeSlotIndex, { imageKey, fileName, fileType }, croppedUrl)
 
       if (cropSourceUrlRef.current) {
         URL.revokeObjectURL(cropSourceUrlRef.current)
@@ -107,7 +184,7 @@ export function CaptureClient({ challenge }: CaptureClientProps) {
       setCropSourceUrl(null)
       setCropperOpen(false)
     },
-    [activeSlotIndex, fillSlot]
+    [activeSlotIndex, challenge.id, fillSlot]
   )
 
   const handleCropCancel = useCallback(() => {
@@ -119,6 +196,28 @@ export function CaptureClient({ challenge }: CaptureClientProps) {
     setCropperOpen(false)
     deselectSlot()
   }, [deselectSlot])
+
+  /** Collect filled imageKeys, revoke all URLs, wipe IDB entries, then reset store. */
+  const handleResetDraft = useCallback(async () => {
+    const currentSlots = useChallengeStore.getState().slots
+    const keysToDelete = currentSlots
+      .filter((s) => s.imageKey !== null)
+      .map((s) => s.imageKey as string)
+
+    // Revoke all live Object URLs
+    objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
+    objectUrlsRef.current.clear()
+
+    // Delete Blobs from IDB (fire-and-forget; UI reset proceeds regardless)
+    try {
+      await deleteImageBlobs(keysToDelete)
+    } catch {
+      // Non-critical: orphaned IDB entries don't affect UX
+    }
+
+    resetDraft()
+    setSaveError(null)
+  }, [resetDraft])
 
   const filledCount = slots.filter((s) => s.status === "filled").length
   const totalCount = slots.length
@@ -176,7 +275,7 @@ export function CaptureClient({ challenge }: CaptureClientProps) {
               character={slot.character}
               status={slot.status}
               isActive={activeSlotIndex === slot.index}
-              imageDataUrl={slot.imageDataUrl}
+              imageDataUrl={slot.imageDataUrl ?? null}
               onTap={() => handleSlotTap(slot.index)}
             />
           ))}
@@ -185,7 +284,14 @@ export function CaptureClient({ challenge }: CaptureClientProps) {
 
       {/* 안내 + 액션 */}
       <section className="px-6 pb-6 pb-safe-bottom space-y-3">
-        {activeSlotIndex === null && !isComplete && (
+        {/* IDB 저장 실패 에러 메시지 */}
+        {saveError && (
+          <p className="text-center text-sm text-destructive" role="alert">
+            {saveError}
+          </p>
+        )}
+
+        {activeSlotIndex === null && !isComplete && !saveError && (
           <p className="text-center text-sm text-muted-foreground">
             슬롯을 터치해서 글자를 모아보세요
           </p>
@@ -208,6 +314,17 @@ export function CaptureClient({ challenge }: CaptureClientProps) {
         >
           콜라주 만들기
         </Link>
+
+        {/* 다시 시작 버튼 — 슬롯이 하나라도 채워졌을 때만 표시 */}
+        {filledCount > 0 && (
+          <button
+            type="button"
+            onClick={handleResetDraft}
+            className="w-full text-sm text-muted-foreground underline underline-offset-4 py-1"
+          >
+            다시 시작
+          </button>
+        )}
       </section>
 
       {/* 이미지 선택 시트 */}
