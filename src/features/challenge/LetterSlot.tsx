@@ -32,18 +32,21 @@ export function LetterSlot({
           "border-primary ring-2 ring-primary/30 ring-offset-2 bg-primary/10",
       )}
     >
+      {/* Image mask container: clips the photo to the button's border-radius without cutting the badge */}
       {status === "filled" && imageDataUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element -- base64 dataUrl에는 next/image 불필요
-        <img
-          src={imageDataUrl}
-          alt={character}
-          className="absolute inset-1 rounded-lg object-cover"
-        />
+        <span className="absolute inset-0 overflow-hidden rounded-[inherit]">
+          {/* eslint-disable-next-line @next/next/no-img-element -- Object URL does not need next/image */}
+          <img
+            src={imageDataUrl}
+            alt={character}
+            className="h-full w-full object-cover"
+          />
+        </span>
       ) : null}
 
       <span
         className={cn(
-          "text-lg font-semibold select-none",
+          "relative z-10 text-lg font-semibold select-none",
           status === "filled" && imageDataUrl && "sr-only",
           status === "filled" && !imageDataUrl && "text-primary",
           status === "empty" && !isActive && "text-muted-foreground/60",
@@ -53,8 +56,9 @@ export function LetterSlot({
         {character}
       </span>
 
+      {/* Badge is a sibling of the mask container, outside of it, so it won't be clipped */}
       {status === "filled" && (
-        <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
+        <span className="absolute -right-1 -top-1 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
           ✓
         </span>
       )}
