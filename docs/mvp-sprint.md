@@ -227,17 +227,16 @@ MVP에서 측정할 퍼널. PostHog은 배포 직후 추가하지만, 수동 확
 #### Day 4 — Crop UI (핵심, 하루 전체 투자)
 
 완료 기준:
-- 선택한 이미지 위에서 영역 드래그로 crop 가능
-- 핀치 줌으로 확대/축소 가능
+- 선택한 이미지 위에서 crop 영역을 직접 그리고, 꼭짓점·변 드래그로 크기/위치 조절 가능
 - "완료" 버튼 → crop된 이미지 blob 반환
 - crop 취소 가능
 
 주요 작업:
-- Canvas 기반 crop 컴포넌트 (react-image-crop 라이브러리 사용 검토)
-- 터치 이벤트 처리 (touchstart, touchmove, touchend)
-- 모바일에서 핀치 줌 제스처
+- react-image-crop(ReactCrop) 기반 자유 영역 crop 컴포넌트
+- 화면 표시 좌표 → 원본 이미지 좌표 변환 (naturalWidth/width로 scaleX·scaleY 계산)
+- Canvas drawImage로 영역 잘라 toBlob 생성
 
-> 주의: crop UI는 가장 어려운 파트. react-image-crop 또는 cropperjs 라이브러리를 적극 활용. 직접 구현에 4시간 이상 걸리면 라이브러리로 전환.
+> 결정: react-easy-crop으로 먼저 구현했으나, 실기기 테스트에서 "고정 정사각형 안에 이미지를 끌어 맞추는" 방식이 간판/포스터의 특정 글자를 정밀하게 잘라내기 어렵다고 판명(docs/reviews/day4-crop-ux-feedback.md). Android 갤러리처럼 사용자가 영역 자체를 그리고 리사이즈하는 react-image-crop으로 확정 교체.
 
 #### Day 5 — Crop 저장 + EXIF 제거 + 슬롯 완성
 
@@ -386,14 +385,14 @@ MVP에서 측정할 퍼널. PostHog은 배포 직후 추가하지만, 수동 확
 
 ## 7. 제품 리스크
 
-### 리스크 1 — Crop UX가 모바일에서 너무 어려움
+### 리스크 1 — Crop UX가 모바일에서 너무 어려움 (해소됨)
 
-설명: 핀치 줌 + 드래그 crop을 Canvas로 직접 구현하면 iOS Safari에서 터치 이벤트 충돌이 자주 발생한다. Day 4 일정을 초과할 가능성 가장 높음.
+설명: 핀치 줌 + 드래그 crop을 Canvas로 직접 구현하면 iOS Safari에서 터치 이벤트 충돌이 자주 발생한다. Day 4 일정을 초과할 가능성 가장 높았던 리스크.
 
-대응 방안:
-- Day 4 시작 전에 react-image-crop, react-easy-crop, cropperjs 3가지 라이브러리 30분씩 프로토타이핑
-- 직접 구현에 3시간 이상 걸리면 라이브러리로 즉시 전환
-- 최악의 경우 "고정 사각형 crop만 가능" 버전으로 단순화
+대응 결과 (Day 4 완료):
+- react-easy-crop으로 먼저 구현 → 실기기 테스트에서 "고정 정사각형 + 이미지 이동" 방식이 정밀 crop에 부적합 판명
+- react-image-crop(자유 영역 그리기) 으로 교체하여 채택. "고정 사각형 단순화" fallback은 불필요해져 기각
+- 직접 구현 대신 라이브러리 활용으로 일정 내 해결
 
 ### 리스크 2 — iOS Safari에서 카메라/저장 동작 불일치
 
