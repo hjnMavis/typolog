@@ -40,3 +40,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .gstack/
+
+# git worktrees (local agent worktrees, must not be tracked)
+.claude/worktrees/
