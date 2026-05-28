@@ -261,9 +261,10 @@ MVP에서 측정할 퍼널. PostHog은 배포 직후 추가하지만, 수동 확
 - "다시 수정" 버튼으로 슬롯 화면 복귀
 
 주요 작업:
-- `/collage/preview` 라우트
-- Canvas로 글자 조각 배치 (기본 그리드 레이아웃, 랜덤 각도 ±15도)
-- 배경색 토글 UI
+- `/challenge/[id]/preview` 라우트 (기존 라우트 사용)
+- CSS transform 기반 콜라주 배치 — index 기반 **결정론적** jitter(회전/크기/간격), 리렌더에도 흔들리지 않음. Canvas는 Day 7 PNG export용
+- 배경색 토글 UI (흰/검/크림, 현재 로컬 state — 영속은 Day 7 PNG 저장 시점에)
+- Day 5 IndexedDB Blob 복원 → Object URL 재생성 (cleanup 포함)
 
 #### Day 7 — PNG 다운로드 + Week 1 QA
 

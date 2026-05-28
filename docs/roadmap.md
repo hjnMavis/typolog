@@ -73,7 +73,7 @@ gantt
 | 1-5 | 이미지 crop UI | react-image-crop 기반 자유 영역 crop: 영역 직접 그리기/꼭짓점·변 드래그로 리사이즈 (react-easy-crop에서 교체) |
 | 1-6 | EXIF strip 유틸 | 업로드 전 메타데이터 제거 |
 | 1-7 | crop 이미지 → 슬롯 저장 | Zustand store + localStorage persist |
-| 1-8 | 콜라주 미리보기 화면 | Canvas로 글자 조각 배치, 배경색 선택 |
+| 1-8 | 콜라주 미리보기 화면 | CSS transform 기반 결정론적 배치(회전/크기/간격 jitter), 배경색 선택. Canvas는 1-9 PNG 생성 단계에서 사용 |
 | 1-9 | 콜라주 PNG 생성 | Canvas → toBlob → 다운로드 |
 | 1-10 | 진행 상태 복원 | 새로고침 해도 진행 중 상태 유지 (localStorage) |
 
