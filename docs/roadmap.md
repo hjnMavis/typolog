@@ -70,7 +70,7 @@ gantt
 | 1-2 | 오늘의 챌린지 화면 (홈) | mock 문장 표시, "시작하기" 버튼 |
 | 1-3 | 글자 슬롯 그리드 UI | 빈 슬롯 / 채운 슬롯 상태 표시 |
 | 1-4 | 카메라/갤러리 접근 | `<input type="file" accept="image/*" capture>`, 바텀시트 |
-| 1-5 | 이미지 crop UI | Canvas 기반 crop: 핀치 줌, 드래그, 영역 선택 |
+| 1-5 | 이미지 crop UI | react-image-crop 기반 자유 영역 crop: 영역 직접 그리기/꼭짓점·변 드래그로 리사이즈 (react-easy-crop에서 교체) |
 | 1-6 | EXIF strip 유틸 | 업로드 전 메타데이터 제거 |
 | 1-7 | crop 이미지 → 슬롯 저장 | Zustand store + localStorage persist |
 | 1-8 | 콜라주 미리보기 화면 | Canvas로 글자 조각 배치, 배경색 선택 |
