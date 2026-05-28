@@ -14,6 +14,15 @@ export function loadImage(src: string): Promise<HTMLImageElement> {
   })
 }
 
+/**
+ * Crop `imageSrc` to `pixelCrop` and return the result as a PNG Blob.
+ *
+ * **EXIF stripping**: The source image is drawn onto a brand-new `<canvas>` element
+ * and re-encoded via `canvas.toBlob("image/png")`. This pipeline produces a fresh
+ * bitmap that does NOT carry over any of the original file's EXIF metadata
+ * (orientation, GPS coordinates, camera model, etc.). The returned Blob is therefore
+ * an EXIF-stripped cropped image — no additional EXIF parser is needed.
+ */
 export async function createCroppedImageBlob(
   imageSrc: string,
   pixelCrop: PixelCrop
