@@ -4,8 +4,12 @@ import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useChallengeStore } from "@/stores/challenge-store"
 import { getImageBlob } from "@/lib/image/indexed-image-store"
+import { loadImage } from "@/lib/image/crop-image"
 import { getPieceLayout, canPreview } from "./collage-layout"
+import { canExport, buildCollageFilename, downloadCollage, shouldUseIosFallbackWithTouch } from "./export-collage"
 import { SLOT_BACKGROUND_COLORS, type BackgroundColor } from "@/lib/constants"
+import { renderCollageToBlob } from "@/lib/collage/render-collage-to-blob"
+import { getKSTDateString } from "@/lib/constants/challenges"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { Challenge } from "@/types"
@@ -28,6 +32,16 @@ export function CollagePreviewClient({ challenge }: CollagePreviewClientProps) {
   const [isRestoring, setIsRestoring] = useState(true)
   /** 콜라주 카드 배경색 로컬 상태 — 기본값: 흰색 */
   const [bgColor, setBgColor] = useState<BackgroundColor>("#ffffff")
+
+  /** PNG export 진행 중 여부 */
+  const [isExporting, setIsExporting] = useState(false)
+  /** export 에러 메시지 (null이면 에러 없음) */
+  const [exportError, setExportError] = useState<string | null>(null)
+  /**
+   * iOS Safari fallback 안내 표시 여부.
+   * iOS에서는 <a download>가 동작하지 않으므로 새 탭으로 열고 사용자에게 저장 방법을 안내한다.
+   */
+  const [showIosSaveHint, setShowIosSaveHint] = useState(false)
 
   /** 이 컴포넌트가 생성한 Object URL을 추적해 unmount 시 전부 revoke한다 */
   const objectUrlsRef = useRef<Map<number, string>>(new Map())
@@ -88,8 +102,66 @@ export function CollagePreviewClient({ challenge }: CollagePreviewClientProps) {
   }, [challenge.id])
 
   const allFilled = canPreview(slots)
+  // 모든 슬롯 복원 완료 + 슬롯이 채워져 있으면 export 버튼 활성화
+  const exportReady = !isRestoring && canExport(slots)
   // 카드 '내부' 글자 폴백 대비용 (페이지 전체에는 적용하지 않음)
   const cardIsDark = isDarkBackground(bgColor)
+
+  /**
+   * PNG export 핸들러.
+   * 사용자 제스처(버튼 클릭) 내에서 직접 호출돼야 iOS 팝업 차단을 최대한 피할 수 있다.
+   */
+  const handleExport = async () => {
+    if (!exportReady || isExporting) return
+
+    setIsExporting(true)
+    setExportError(null)
+    setShowIosSaveHint(false)
+
+    try {
+      // 각 슬롯에 대해 HTMLImageElement 로드 (없으면 null → 텍스트 폴백)
+      const sortedSlots = [...slots].sort((a, b) => a.index - b.index)
+      const items = await Promise.all(
+        sortedSlots.map(async (slot) => {
+          const url = restoredUrls[slot.index] ?? null
+          if (!url) return { imageEl: null, character: slot.character }
+          try {
+            const imageEl = await loadImage(url)
+            return { imageEl, character: slot.character }
+          } catch {
+            // 이미지 로드 실패 시 텍스트 폴백
+            return { imageEl: null, character: slot.character }
+          }
+        })
+      )
+
+      // Canvas 렌더링 → PNG Blob 생성
+      const blob = await renderCollageToBlob({ items, bgColor })
+
+      // 파일명: typolog-{challengeId}-{YYYYMMDD}.png (Asia/Seoul 기준 날짜)
+      const filename = buildCollageFilename(challenge.id, getKSTDateString())
+
+      // iOS fallback 여부 판단 (UA + maxTouchPoints).
+      // 데스크톱 Chrome/Firefox/Edge는 maxTouchPoints 값과 무관하게 직접 다운로드한다.
+      const useIosFallback = shouldUseIosFallbackWithTouch(
+        navigator.userAgent,
+        navigator.maxTouchPoints
+      )
+
+      const result = await downloadCollage({ blob, filename, useIosFallback })
+
+      if (result.mode === "ios-fallback") {
+        // iOS: 새 탭으로 이미지가 열렸으므로 사용자에게 저장 방법 안내
+        setShowIosSaveHint(true)
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "이미지 저장 중 오류가 발생했습니다"
+      setExportError(message)
+    } finally {
+      setIsExporting(false)
+    }
+  }
 
   // ─────────────────────────────────────────────
   // 슬롯 미준비 상태 폴백 UI
@@ -221,14 +293,34 @@ export function CollagePreviewClient({ challenge }: CollagePreviewClientProps) {
 
       {/* 액션 버튼 */}
       <section className="space-y-3 px-6 pb-8 pb-safe-bottom">
-        {/* Day 7 예정: PNG 저장 — 현재는 disabled */}
+        {/* export 에러 메시지 */}
+        {exportError && (
+          <p
+            role="alert"
+            className="rounded-lg bg-destructive/10 px-4 py-2 text-center text-sm text-destructive"
+          >
+            {exportError}
+          </p>
+        )}
+
+        {/* iOS Safari fallback 안내: 새 탭에서 이미지를 길게 눌러 저장 */}
+        {showIosSaveHint && !exportError && (
+          <p
+            role="status"
+            className="rounded-lg bg-primary/10 px-4 py-2 text-center text-sm text-primary"
+          >
+            새 탭에서 이미지를 길게 눌러 사진에 저장하세요.
+          </p>
+        )}
+
         <Button
-          disabled
           size="lg"
-          className="w-full cursor-not-allowed opacity-40"
-          aria-label="PNG 저장은 Day 7에 제공됩니다"
+          className="w-full"
+          disabled={!exportReady || isExporting}
+          aria-label={isExporting ? "PNG 저장 중…" : "PNG로 저장하기"}
+          onClick={handleExport}
         >
-          저장하기 (Day 7 예정)
+          {isExporting ? "저장 중…" : "저장하기"}
         </Button>
 
         <Link
