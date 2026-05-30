@@ -88,6 +88,7 @@ CREATE TRIGGER on_auth_user_created
 CREATE TABLE challenges (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   sentence    TEXT NOT NULL,
+  lines       TEXT[] NOT NULL,
   letters     TEXT[] NOT NULL,
   active_date DATE NOT NULL UNIQUE,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -98,13 +99,15 @@ CREATE INDEX idx_challenges_active_date ON challenges(active_date);
 
 **설계 포인트**:
 - `active_date UNIQUE` → 날짜당 정확히 1개 문장
-- `letters`는 `sentence`에서 공백/특수문자 제거한 배열 (예: "오늘도 화이팅" → `{'오','늘','도','화','이','팅'}`)
-- seed SQL로 등록. 관리자 UI 없음
+- `lines`는 **작성자가 지정한 줄 배열**(콜라주 줄 배치의 단일 소스). 예: "우리 동네 맛집" → `{'우리 동네','맛집'}` (단어 "동네"가 끊기지 않도록 작성자가 의도)
+- `sentence`(표시용) = `lines`를 공백으로 join, `letters`(슬롯용) = `lines`의 각 줄에서 공백/특수문자 제거 후 flatten (예: "오늘도 화이팅" → `{'오','늘','도','화','이','팅'}`)
+- seed SQL로 등록. Phase 2 관리자 UI는 줄별 입력(↔ `lines`). 현재 관리자 UI 없음
 - 비인증 사용자도 조회 가능 (공유 페이지에서 문장 표시 필요)
 
-**왜 letters를 별도로 저장하나?**
-- 클라이언트에서 "공백 제거" 로직을 중복 구현하지 않기 위해
-- 서버에서 정답(슬롯 개수, 글자 순서)을 한 번에 내려줌
+**왜 letters/lines를 별도로 저장하나?**
+- 클라이언트에서 "공백 제거"·"줄나눔" 로직을 중복 구현하지 않기 위해
+- 서버에서 정답(슬롯 개수, 글자 순서, 줄 배치)을 한 번에 내려줌
+- 줄 배치는 `lines`가 담당 — 알고리즘 줄나눔이 한글 단어를 중간에 끊는 문제를 작성자 지정으로 회피
 
 ---
 

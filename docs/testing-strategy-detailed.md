@@ -136,19 +136,29 @@
   기대: { valid: true } (경계값 포함 허용)
 ```
 
-### 콜라주 레이아웃 계산 (`src/lib/canvas/collage.ts`)
+### 콜라주 레이아웃 계산 (`src/lib/collage/sentence-lines.ts`, `src/lib/collage/render-collage-to-blob.ts`)
+
+> 줄나눔은 작성자 지정 `Challenge.lines`을 단일 소스로 따른다(알고리즘 추측 아님). 순수 함수 중심 테스트, Canvas 드로잉은 E2E/golden image로 커버.
 
 ```
-[U-28] src/lib/canvas/collage.ts > 6개 글자 조각 그리드 배치
-  입력: pieces=[6개 이미지], canvasSize={w:1080, h:1080}
-  기대: 6개 piece 위치 모두 canvas 범위 내, 겹침 없음
+[U-27] src/lib/collage/sentence-lines.ts > getCollageLines: 작성자 지정 lines → 줄별 슬롯 index
+  입력: lines=["우리 동네","맛집"]
+  기대: [[0,1,2,3],[4,5]] (단어 "동네"가 끊기지 않음)
 
-[U-29] src/lib/canvas/collage.ts > 배경색 적용
+[U-27-B] src/lib/collage/sentence-lines.ts > getCollageLines 불변식
+  입력: 임의 lines
+  기대: flat() === [0 .. letters.length-1] (연속·무중복·무누락 = 슬롯 index 정합)
+
+[U-28] src/lib/collage/render-collage-to-blob.ts > getLineCellRects: 줄 기반 셀 배치
+  입력: lines=[[0,1,2,3],[4,5]], canvasSize=1080
+  기대: 같은 줄 y 동일, 다음 줄 y 증가, 각 줄 가로 중앙, 셀 정사각·동일 크기, canvas 범위 내
+
+[U-29] src/lib/collage/render-collage-to-blob.ts > 배경색 적용
   입력: backgroundColor="black"
   기대: canvas 배경 픽셀이 rgb(0,0,0)
 
-[U-30] src/lib/canvas/collage.ts > 콜라주 PNG Blob 생성
-  입력: 6개 조각 + 배경색
+[U-30] src/lib/collage/render-collage-to-blob.ts > 콜라주 PNG Blob 생성
+  입력: items + lines + 배경색
   기대: 반환 Blob.type="image/png", size <= 2097152 (2MB)
 ```
 

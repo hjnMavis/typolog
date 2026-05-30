@@ -58,6 +58,8 @@ graph TB
 | 폼 | react-hook-form + zod | 검증 로직 공유 (클라이언트/서버) |
 | 이미지 crop | Canvas API (직접 구현) | 번들 크기 최소화, 커스텀 UX |
 | 콜라주 생성 | Canvas API | 서버 의존 없이 클라이언트에서 이미지 생성 |
+| 콜라주 줄 배치 | Challenge.lines (작성자 지정) | 줄나눔을 알고리즘으로 추측하지 않고 작성자가 의도대로 지정. 수집/preview/PNG 동일 |
+| dev 관측(로깅) | 구조화 로거 `src/lib/debug/log.ts` (콘솔+세션버퍼+내보내기) | sink 확장형 — Phase 2에 OpenSearch/PostHog/Sentry sink만 추가하면 원격 수집 가능 |
 
 ### 렌더링 전략
 
