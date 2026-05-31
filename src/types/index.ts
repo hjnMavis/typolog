@@ -1,6 +1,13 @@
 export interface Challenge {
   id: string
+  /**
+   * 작성자가 정의한 줄 배치. 콜라주 단일 소스(single source of truth).
+   * 수집·preview·PNG 세 화면이 모두 이 배열을 그대로 따른다.
+   */
+  lines: string[]
+  /** 파생값: `lines.join(" ")`. 표시·SEO용 한 문장. */
   sentence: string
+  /** 파생값: `lines.flatMap(parseSentence)`. 슬롯 글자 배열. */
   letters: string[]
   activeDate: string
 }

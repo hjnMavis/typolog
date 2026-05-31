@@ -4,6 +4,7 @@ import type { Challenge, LetterSlot } from "@/types"
 
 const mockChallenge: Challenge = {
   id: "test-1",
+  lines: ["오늘도", "화이팅"],
   sentence: "오늘도 화이팅",
   letters: ["오", "늘", "도", "화", "이", "팅"],
   activeDate: "2026-05-26",
@@ -65,6 +66,7 @@ describe("useChallengeStore", () => {
 
       const otherChallenge: Challenge = {
         id: "test-2",
+        lines: ["참 좋은 날"],
         sentence: "참 좋은 날",
         letters: ["참", "좋", "은", "날"],
         activeDate: "2026-05-27",
