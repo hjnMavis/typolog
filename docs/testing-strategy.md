@@ -38,7 +38,7 @@ MVP에서는 **핵심 UX와 보안에 직접 영향을 주는 부분**만 테스
 | 모듈 | 테스트 내용 | 우선순위 |
 |------|-----------|---------|
 | `src/lib/canvas/crop.ts` | crop 좌표 계산, 이미지 리사이즈, WebP 변환 | 높음 |
-| `src/lib/canvas/collage.ts` | 글자 배치 계산, 콜라주 레이아웃 로직 | 높음 |
+| `src/lib/collage/sentence-lines.ts`, `render-collage-to-blob.ts` | Challenge.lines 기반 줄나눔(getCollageLines) + 셀 좌표(getLineCellRects), PNG 생성 | 높음 |
 | `src/lib/utils/exif-strip.ts` | EXIF 메타데이터 제거 확인 | 높음 |
 | `src/lib/utils/image-validate.ts` | 파일 타입 검증, 크기 제한 검증 | 높음 |
 | `src/stores/challenge-store.ts` | Zustand 상태 전이 (슬롯 채우기, 교체, 초기화) | 중간 |

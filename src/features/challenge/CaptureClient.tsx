@@ -13,6 +13,8 @@ import {
   getImageBlob,
   deleteImageBlobs,
 } from "@/lib/image/indexed-image-store"
+import { getCollageLines } from "@/lib/collage/sentence-lines"
+import { debugLog } from "@/lib/debug/log"
 import type { Challenge } from "@/types"
 
 interface CaptureClientProps {
@@ -29,6 +31,7 @@ export function CaptureClient({ challenge }: CaptureClientProps) {
     deselectSlot,
     fillSlot,
     setSlotImageUrl,
+    clearImageUrls,
     resetDraft,
   } = useChallengeStore()
 
@@ -46,6 +49,12 @@ export function CaptureClient({ challenge }: CaptureClientProps) {
   // Init slots (idempotent guard is inside the store)
   useEffect(() => {
     initSlots(challenge)
+    debugLog("capture", "challenge loaded", {
+      id: challenge.id,
+      lines: challenge.lines,
+      layout: getCollageLines(challenge.lines),
+      letters: challenge.letters.length,
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- challenge.id가 바뀔 때만 재초기화
   }, [challenge.id, initSlots])
 
@@ -89,12 +98,15 @@ export function CaptureClient({ challenge }: CaptureClientProps) {
     return () => {
       urls.forEach((url) => URL.revokeObjectURL(url))
       urls.clear()
+      // 폐기한 URL 문자열이 스토어에 남으면 재진입 시 죽은 blob:을 렌더하므로 함께 비운다.
+      // (재진입 시 복원 이펙트가 IDB에서 새 URL을 다시 만들도록)
+      clearImageUrls()
       if (sourceRef.current) {
         URL.revokeObjectURL(sourceRef.current)
         sourceRef.current = null
       }
     }
-  }, [challenge.id])
+  }, [challenge.id, clearImageUrls])
 
   const handleSlotTap = useCallback(
     (index: number) => {
@@ -176,6 +188,11 @@ export function CaptureClient({ challenge }: CaptureClientProps) {
       const croppedUrl = URL.createObjectURL(croppedBlob)
       objectUrlsRef.current.set(activeSlotIndex, croppedUrl)
       fillSlot(activeSlotIndex, { imageKey, fileName, fileType }, croppedUrl)
+      debugLog("capture", "slot filled", {
+        index: activeSlotIndex,
+        char: challenge.letters[activeSlotIndex],
+        imageKey,
+      })
 
       if (cropSourceUrlRef.current) {
         URL.revokeObjectURL(cropSourceUrlRef.current)
@@ -184,7 +201,7 @@ export function CaptureClient({ challenge }: CaptureClientProps) {
       setCropSourceUrl(null)
       setCropperOpen(false)
     },
-    [activeSlotIndex, challenge.id, fillSlot]
+    [activeSlotIndex, challenge.id, challenge.letters, fillSlot]
   )
 
   const handleCropCancel = useCallback(() => {
@@ -224,6 +241,10 @@ export function CaptureClient({ challenge }: CaptureClientProps) {
   const activeCharacter =
     activeSlotIndex !== null ? slots[activeSlotIndex]?.character ?? null : null
 
+  // 작성자 지정 줄 배치 → 슬롯 index 행 배열 + index로 슬롯을 찾는 맵
+  const collageLines = getCollageLines(challenge.lines)
+  const slotByIndex = new Map(slots.map((slot) => [slot.index, slot]))
+
   if (slots.length === 0) return null
 
   return (
@@ -259,25 +280,29 @@ export function CaptureClient({ challenge }: CaptureClientProps) {
         />
       </div>
 
-      {/* 글자 슬롯 그리드 */}
+      {/* 글자 슬롯 — 작성자 지정 줄 배치(challenge.lines)대로 행 스택 */}
       <section className="flex-1 px-6 py-6">
-        <div
-          className={cn(
-            "grid gap-3 mx-auto max-w-sm",
-            totalCount <= 4 && "grid-cols-4",
-            totalCount >= 5 && totalCount <= 6 && "grid-cols-3",
-            totalCount >= 7 && "grid-cols-4"
-          )}
-        >
-          {slots.map((slot) => (
-            <LetterSlot
-              key={slot.index}
-              character={slot.character}
-              status={slot.status}
-              isActive={activeSlotIndex === slot.index}
-              imageDataUrl={slot.imageDataUrl ?? null}
-              onTap={() => handleSlotTap(slot.index)}
-            />
+        <div className="mx-auto flex w-full max-w-sm flex-col gap-3">
+          {collageLines.map((row) => (
+            <div key={row[0]} className="flex w-full justify-center gap-3">
+              {row.map((slotIndex) => {
+                const slot = slotByIndex.get(slotIndex)
+                if (!slot) return null
+                return (
+                  // A2: 슬롯을 w-16 min-w-0 shrink 래퍼로 감싸 flex 행에서 폭0 붕괴를 막는다.
+                  // (LetterSlot 내부 aspect-square w-full이 래퍼 폭을 채워 정사각 유지)
+                  <div key={slot.index} className="w-16 min-w-0 shrink">
+                    <LetterSlot
+                      character={slot.character}
+                      status={slot.status}
+                      isActive={activeSlotIndex === slot.index}
+                      imageDataUrl={slot.imageDataUrl ?? null}
+                      onTap={() => handleSlotTap(slot.index)}
+                    />
+                  </div>
+                )
+              })}
+            </div>
           ))}
         </div>
       </section>

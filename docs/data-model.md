@@ -45,15 +45,18 @@ Supabase Auth의 `auth.users`를 확장하는 공개 프로필 테이블.
 | 필드 | 타입 | 제약조건 | 설명 |
 |------|------|---------|------|
 | `id` | UUID | PK, DEFAULT gen_random_uuid() | |
-| `sentence` | TEXT | NOT NULL | 전체 문장 ("오늘도 화이팅") |
-| `letters` | TEXT[] | NOT NULL | 개별 글자 배열 (공백 제외) |
+| `sentence` | TEXT | NOT NULL | 전체 문장, 표시용 ("오늘도 화이팅"). `lines`에서 파생 |
+| `lines` | TEXT[] | NOT NULL | 작성자가 지정한 줄 배열 (단일 소스). 예: ["오늘도","화이팅"] |
+| `letters` | TEXT[] | NOT NULL | 개별 글자 배열 (공백 제외), `lines`에서 파생 |
 | `active_date` | DATE | NOT NULL, UNIQUE | 이 문장이 활성화되는 날짜 |
 | `created_at` | TIMESTAMPTZ | DEFAULT now() | |
 
 **설계 판단**:
-- `letters` 배열은 `sentence`에서 공백/특수문자를 제거한 결과. 예: "오늘도 화이팅" → ["오","늘","도","화","이","팅"]
+- **`lines`가 단일 소스(single source of truth)**. 작성자(관리자)가 콜라주 줄 배치를 직접 지정한다. 줄나눔을 알고리즘으로 추측하지 않는 이유: 한글은 단어 중간이 끊기면 어색함("우리 동네 맛집" → 우리동/네맛집 = 영어 coffee→cof/fee 느낌). 줄 수는 작성자 자유.
+- `sentence`(표시용) = `lines.join(" ")`, `letters`(슬롯용) = 각 줄에서 공백/특수문자 제거 후 flatten. 예: lines=["오늘도","화이팅"] → sentence="오늘도 화이팅", letters=["오","늘","도","화","이","팅"]
+- 수집(`/challenge/[id]`)·preview·PNG export 세 화면이 모두 `lines`를 기준으로 **동일하게** 줄나눔.
 - `active_date`에 UNIQUE 제약 → 날짜당 하나의 문장만 보장
-- 문장 등록은 관리자(서비스 키)만 가능. MVP에서는 seed SQL로 등록
+- 문장 등록은 관리자(서비스 키)만 가능. Phase 1(mock)에서는 mock 데이터에 `lines` 직접 지정, Phase 2 admin UI는 줄별 입력 폼(↔ `lines` 배열)으로 등록. MVP 서버에서는 seed SQL로 등록
 
 **RLS 고려사항**:
 - SELECT: 모든 사용자 (비인증 포함) 조회 가능

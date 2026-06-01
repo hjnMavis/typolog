@@ -30,6 +30,14 @@ interface ChallengeStore {
    * Used during IDB restore on mount.
    */
   setSlotImageUrl: (index: number, imageDataUrl: string) => void
+  /**
+   * Null out every slot's runtime-only imageDataUrl.
+   * Call right after revoking the corresponding Object URLs (e.g. on unmount):
+   * a revoked URL must not stay referenced in state, or a later re-mount would
+   * render a dead `blob:` URL. Persisted metadata (imageKey/status) is kept, so
+   * the next restore re-creates fresh URLs from IndexedDB.
+   */
+  clearImageUrls: () => void
   clearSlot: (index: number) => void
   /**
    * Re-create empty slots for the current challenge, clearing all metadata.
@@ -114,6 +122,13 @@ export const useChallengeStore = create<ChallengeStore>()(
         set((state) => ({
           slots: state.slots.map((slot) =>
             slot.index === index ? { ...slot, imageDataUrl } : slot
+          ),
+        })),
+
+      clearImageUrls: () =>
+        set((state) => ({
+          slots: state.slots.map((slot) =>
+            slot.imageDataUrl === null ? slot : { ...slot, imageDataUrl: null }
           ),
         })),
 
