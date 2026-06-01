@@ -14,6 +14,7 @@ import {
   deleteImageBlobs,
 } from "@/lib/image/indexed-image-store"
 import { getCollageLines } from "@/lib/collage/sentence-lines"
+import { debugLog } from "@/lib/debug/log"
 import type { Challenge } from "@/types"
 
 interface CaptureClientProps {
@@ -48,6 +49,12 @@ export function CaptureClient({ challenge }: CaptureClientProps) {
   // Init slots (idempotent guard is inside the store)
   useEffect(() => {
     initSlots(challenge)
+    debugLog("capture", "challenge loaded", {
+      id: challenge.id,
+      lines: challenge.lines,
+      layout: getCollageLines(challenge.lines),
+      letters: challenge.letters.length,
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- challenge.id가 바뀔 때만 재초기화
   }, [challenge.id, initSlots])
 
@@ -181,6 +188,11 @@ export function CaptureClient({ challenge }: CaptureClientProps) {
       const croppedUrl = URL.createObjectURL(croppedBlob)
       objectUrlsRef.current.set(activeSlotIndex, croppedUrl)
       fillSlot(activeSlotIndex, { imageKey, fileName, fileType }, croppedUrl)
+      debugLog("capture", "slot filled", {
+        index: activeSlotIndex,
+        char: challenge.letters[activeSlotIndex],
+        imageKey,
+      })
 
       if (cropSourceUrlRef.current) {
         URL.revokeObjectURL(cropSourceUrlRef.current)
@@ -189,7 +201,7 @@ export function CaptureClient({ challenge }: CaptureClientProps) {
       setCropSourceUrl(null)
       setCropperOpen(false)
     },
-    [activeSlotIndex, challenge.id, fillSlot]
+    [activeSlotIndex, challenge.id, challenge.letters, fillSlot]
   )
 
   const handleCropCancel = useCallback(() => {

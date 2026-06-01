@@ -10,6 +10,7 @@ import { canExport, buildCollageFilename, downloadCollage, shouldUseIosFallbackW
 import { SLOT_BACKGROUND_COLORS, type BackgroundColor } from "@/lib/constants"
 import { renderCollageToBlob } from "@/lib/collage/render-collage-to-blob"
 import { getCollageLines } from "@/lib/collage/sentence-lines"
+import { debugLog } from "@/lib/debug/log"
 import { getKSTDateString } from "@/lib/constants/challenges"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -84,6 +85,11 @@ export function CollagePreviewClient({ challenge }: CollagePreviewClientProps) {
       if (!isMounted) return
       setRestoredUrls(newUrls)
       setIsRestoring(false)
+      debugLog("preview", "restored", {
+        challengeId: challenge.id,
+        restored: Object.keys(newUrls).length,
+        lines: challenge.lines,
+      })
     }
 
     restore()
@@ -91,7 +97,7 @@ export function CollagePreviewClient({ challenge }: CollagePreviewClientProps) {
     return () => {
       isMounted = false
     }
-  }, [challenge.id])
+  }, [challenge.id, challenge.lines])
 
   // unmount/challenge 변경 시 이 컴포넌트가 만든 Object URL 전부 revoke
   useEffect(() => {
@@ -154,6 +160,15 @@ export function CollagePreviewClient({ challenge }: CollagePreviewClientProps) {
       )
 
       const result = await downloadCollage({ blob, filename, useIosFallback })
+
+      debugLog("export", "collage exported", {
+        challengeId: challenge.id,
+        lines: challenge.lines,
+        filename,
+        mode: result.mode,
+        blobSize: blob.size,
+        useIosFallback,
+      })
 
       if (result.mode === "ios-fallback") {
         // iOS: 새 탭으로 이미지가 열렸으므로 사용자에게 저장 방법 안내
