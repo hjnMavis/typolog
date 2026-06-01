@@ -2,7 +2,7 @@
  * Canvas 기반 콜라주 렌더링 유틸
  *
  * 책임 분리:
- *   - PURE 함수 (getGridColumns, getCellRects, backgroundToFillStyle): DOM 의존 없음 → Vitest 단위 테스트 가능
+ *   - PURE 함수 (getLineCellRects, backgroundToFillStyle): DOM 의존 없음 → Vitest 단위 테스트 가능
  *   - renderCollageToBlob: 브라우저 Canvas API 사용 → 단위 테스트 제외, E2E로 커버
  *
  * 주의: jsdom 환경에서는 canvas.getContext("2d")가 null을 반환하므로
@@ -10,6 +10,7 @@
  */
 
 import { getPieceLayout } from "@/features/compose/collage-layout"
+import { getCollageLines } from "@/lib/collage/sentence-lines"
 import type { BackgroundColor } from "@/lib/constants"
 
 /** 내보낼 PNG의 정사각형 크기 (px). 1080×1080 = SNS 표준 해상도 */
@@ -19,63 +20,70 @@ export const EXPORT_SIZE = 1080
 // PURE 수학 함수 — 단위 테스트 가능
 // ─────────────────────────────────────────────────────────
 
-/**
- * 조각 수로부터 flex-wrap 레이아웃과 유사한 그리드 열 수를 계산한다.
- * 결정론적이며 Math.random() / Date를 사용하지 않는다.
- *
- * 알고리즘: ceil(sqrt(count))로 정사각에 가까운 배열을 만들되, 최소 1 / 최대 6으로 클램프한다.
- * 최대 6은 미리보기의 max-w-xs(320px) / size-16(64px) + gap-1(4px) 기준 가로로 4~5개 들어가는
- * 실제 레이아웃과 근사치를 맞추기 위한 값이다.
- *
- * @param count - 전체 조각 수
- */
-export function getGridColumns(count: number): number {
-  if (count <= 0) return 1
-  const cols = Math.ceil(Math.sqrt(count))
-  return Math.max(1, Math.min(cols, 6))
+export interface CellRect {
+  x: number
+  y: number
+  w: number
+  h: number
 }
 
 /**
- * count개의 조각에 대해 행-우선(row-major) 순서로 셀 사각형 배열을 반환한다.
- * 반환 배열의 인덱스 = 문장 순서(slot.index)와 일치한다.
+ * 작성자 지정 줄 배치(슬롯 index의 2차원 배열)로부터 각 슬롯의 셀 사각형을 계산한다.
+ * 결정론적이며 Math.random() / Date를 사용하지 않는다.
  *
- * @param count      - 전체 조각 수
+ * 반환 배열의 인덱스 = 슬롯 index(문장 순서)와 일치한다.
+ * (getCollageLines의 불변식 flat()===[0..N-1] 덕분에 index로 직접 채워 넣을 수 있다.)
+ *
+ * 배치 규칙:
+ *   - 같은 줄의 셀은 동일한 y (한 줄로 정렬)
+ *   - 아래 줄일수록 y 증가 (행간 일정)
+ *   - 각 줄은 가로 중앙 정렬 (줄마다 길이가 달라도 각자 중앙)
+ *   - 모든 셀은 정사각형·동일 크기 (가장 넓은 줄·줄 수 양쪽 제약을 동시 충족하는 최댓값)
+ *   - 전체 줄 블록은 패딩 안에서 세로 중앙 배치
+ *
+ * @param lines      - getCollageLines()가 반환한 슬롯 index 2차원 배열
  * @param canvasSize - 캔버스 크기 (정사각형; px)
  * @param paddingPx  - 캔버스 가장자리 패딩 (px)
  */
-export function getCellRects(
-  count: number,
+export function getLineCellRects(
+  lines: number[][],
   canvasSize: number,
   paddingPx: number
-): Array<{ x: number; y: number; w: number; h: number }> {
-  if (count <= 0) return []
+): CellRect[] {
+  const numRows = lines.length
+  if (numRows === 0) return []
 
-  const cols = getGridColumns(count)
-  const rows = Math.ceil(count / cols)
+  const maxCols = Math.max(...lines.map((row) => row.length))
+  const totalCells = lines.reduce((sum, row) => sum + row.length, 0)
 
   // 패딩을 제외한 가용 영역
   const innerSize = canvasSize - paddingPx * 2
-  // 셀 사이 gap은 셀 크기의 약 4% (미리보기 gap-1 ≈ 4px / size-16 64px ≈ 6%)
+  // 셀 사이 gap은 셀 크기의 약 5% (미리보기 gap-1 ≈ 4px / w-16 64px ≈ 6%)
   const gapRatio = 0.05
-  const cellW = innerSize / (cols + (cols - 1) * gapRatio)
-  const cellH = innerSize / (rows + (rows - 1) * gapRatio)
-  const cellSize = Math.min(cellW, cellH) // 정사각 셀
+
+  // 가로(가장 넓은 줄)·세로(줄 수) 양쪽 제약을 동시에 만족하는 최대 정사각 셀 크기
+  const cellW = innerSize / (maxCols + (maxCols - 1) * gapRatio)
+  const cellH = innerSize / (numRows + (numRows - 1) * gapRatio)
+  const cellSize = Math.min(cellW, cellH)
   const gap = cellSize * gapRatio
 
-  // 전체 격자 크기를 계산해 캔버스 중앙에 배치
-  const gridWidth = cols * cellSize + (cols - 1) * gap
-  const gridHeight = rows * cellSize + (rows - 1) * gap
-  const offsetX = (canvasSize - gridWidth) / 2
+  // 전체 줄 블록을 캔버스 세로 중앙에 배치
+  const gridHeight = numRows * cellSize + (numRows - 1) * gap
   const offsetY = (canvasSize - gridHeight) / 2
 
-  const rects: Array<{ x: number; y: number; w: number; h: number }> = []
+  const rects: CellRect[] = new Array(totalCells)
 
-  for (let i = 0; i < count; i++) {
-    const col = i % cols
-    const row = Math.floor(i / cols)
-    const x = offsetX + col * (cellSize + gap)
-    const y = offsetY + row * (cellSize + gap)
-    rects.push({ x, y, w: cellSize, h: cellSize })
+  for (let r = 0; r < numRows; r++) {
+    const row = lines[r]
+    const rowWidth = row.length * cellSize + (row.length - 1) * gap
+    const offsetX = (canvasSize - rowWidth) / 2 // 각 줄 가로 중앙
+    const y = offsetY + r * (cellSize + gap)
+
+    for (let c = 0; c < row.length; c++) {
+      const slotIndex = row[c]
+      const x = offsetX + c * (cellSize + gap)
+      rects[slotIndex] = { x, y, w: cellSize, h: cellSize }
+    }
   }
 
   return rects
@@ -106,6 +114,12 @@ export interface RenderCollageItem {
 export interface RenderCollageOptions {
   items: RenderCollageItem[]
   bgColor: BackgroundColor
+  /**
+   * 작성자 지정 줄 배치(challenge.lines). 콜라주 줄나눔의 단일 소스.
+   * 내부에서 getCollageLines(lines)로 슬롯 index 레이아웃을 만들어 셀 좌표를 계산한다.
+   * items는 슬롯 index 순서(문장 순서)로 정렬돼 있어야 한다.
+   */
+  lines: string[]
   /** 내보낼 PNG 크기 (정사각형). 기본값: EXPORT_SIZE (1080) */
   size?: number
 }
@@ -126,7 +140,7 @@ export interface RenderCollageOptions {
  * @throws {Error} toBlob이 null 반환 시
  */
 export async function renderCollageToBlob(opts: RenderCollageOptions): Promise<Blob> {
-  const { items, bgColor, size = EXPORT_SIZE } = opts
+  const { items, bgColor, lines, size = EXPORT_SIZE } = opts
 
   const canvas = document.createElement("canvas")
   canvas.width = size
@@ -145,10 +159,12 @@ export async function renderCollageToBlob(opts: RenderCollageOptions): Promise<B
 
   // 패딩: EXPORT_SIZE 기준 비율 (미리보기 p-4 = 16px / 320px ≈ 5%)
   const paddingPx = Math.round(size * 0.05)
-  const rects = getCellRects(items.length, size, paddingPx)
+  // 작성자 지정 줄 배치 → 슬롯 index 레이아웃 → 줄 기반 셀 좌표
+  const layout = getCollageLines(lines)
+  const rects = getLineCellRects(layout, size, paddingPx)
 
-  // 미리보기에서 size-16 = 64px 기준이므로, 내보낼 때 cellSize로 스케일
-  // getCellRects에서 반환된 cellSize는 rects[0].w와 같다
+  // 미리보기에서 w-16 = 64px 기준이므로, 내보낼 때 cellSize로 스케일
+  // getLineCellRects에서 반환된 cellSize는 rects[0].w와 같다
   const previewCellSize = 64
   const exportCellSize = rects[0]?.w ?? previewCellSize
   const marginScale = exportCellSize / previewCellSize

@@ -9,6 +9,7 @@ import { getPieceLayout, canPreview } from "./collage-layout"
 import { canExport, buildCollageFilename, downloadCollage, shouldUseIosFallbackWithTouch } from "./export-collage"
 import { SLOT_BACKGROUND_COLORS, type BackgroundColor } from "@/lib/constants"
 import { renderCollageToBlob } from "@/lib/collage/render-collage-to-blob"
+import { getCollageLines } from "@/lib/collage/sentence-lines"
 import { getKSTDateString } from "@/lib/constants/challenges"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -107,6 +108,10 @@ export function CollagePreviewClient({ challenge }: CollagePreviewClientProps) {
   // 카드 '내부' 글자 폴백 대비용 (페이지 전체에는 적용하지 않음)
   const cardIsDark = isDarkBackground(bgColor)
 
+  // 작성자 지정 줄 배치 → 슬롯 index 행 배열 + index로 슬롯을 찾는 맵
+  const collageLines = getCollageLines(challenge.lines)
+  const slotByIndex = new Map(slots.map((slot) => [slot.index, slot]))
+
   /**
    * PNG export 핸들러.
    * 사용자 제스처(버튼 클릭) 내에서 직접 호출돼야 iOS 팝업 차단을 최대한 피할 수 있다.
@@ -135,8 +140,8 @@ export function CollagePreviewClient({ challenge }: CollagePreviewClientProps) {
         })
       )
 
-      // Canvas 렌더링 → PNG Blob 생성
-      const blob = await renderCollageToBlob({ items, bgColor })
+      // Canvas 렌더링 → PNG Blob 생성 (작성자 지정 줄 배치를 그대로 전달)
+      const blob = await renderCollageToBlob({ items, bgColor, lines: challenge.lines })
 
       // 파일명: typolog-{challengeId}-{YYYYMMDD}.png (Asia/Seoul 기준 날짜)
       const filename = buildCollageFilename(challenge.id, getKSTDateString())
@@ -216,50 +221,54 @@ export function CollagePreviewClient({ challenge }: CollagePreviewClientProps) {
             )}
             style={{ backgroundColor: bgColor }}
           >
-            {/* 글자 조각 배열 — 문장 순서(slot.index) 기준 */}
-            <div className="flex flex-wrap items-center justify-center gap-1 p-4">
-              {[...slots]
-                .sort((a, b) => a.index - b.index)
-                .map((slot) => {
-                  const layout = getPieceLayout(slot.index)
-                  const imageUrl = restoredUrls[slot.index] ?? null
+            {/* 글자 조각 — 작성자 지정 줄 배치(challenge.lines)대로 행 스택 */}
+            <div className="flex flex-col gap-1 p-4">
+              {collageLines.map((row) => (
+                <div key={row[0]} className="flex w-full justify-center gap-1">
+                  {row.map((slotIndex) => {
+                    const slot = slotByIndex.get(slotIndex)
+                    if (!slot) return null
+                    const layout = getPieceLayout(slotIndex)
+                    const imageUrl = restoredUrls[slotIndex] ?? null
 
-                  return (
-                    <div
-                      key={slot.index}
-                      style={{
-                        transform: `rotate(${layout.rotateDeg}deg) scale(${layout.scale})`,
-                        marginTop: `${layout.marginTopPx}px`,
-                        willChange: "transform",
-                      }}
-                      className="relative shrink-0"
-                    >
-                      {imageUrl ? (
-                        <div className="size-16 overflow-hidden rounded-xl ring-1 ring-black/10">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={imageUrl}
-                            alt={slot.character}
-                            className="size-full object-cover"
-                            draggable={false}
-                          />
-                        </div>
-                      ) : (
-                        // IDB Blob 없음 → 글자 텍스트 폴백 (카드 배경 대비 유지)
-                        <div
-                          className={cn(
-                            "flex size-16 items-center justify-center rounded-xl text-2xl font-bold ring-1",
-                            cardIsDark
-                              ? "bg-white/10 text-white ring-white/20"
-                              : "bg-black/5 text-foreground ring-black/10"
-                          )}
-                        >
-                          {slot.character}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
+                    return (
+                      <div
+                        key={slotIndex}
+                        style={{
+                          transform: `rotate(${layout.rotateDeg}deg) scale(${layout.scale})`,
+                          marginTop: `${layout.marginTopPx}px`,
+                          willChange: "transform",
+                        }}
+                        className="w-16 min-w-0 shrink"
+                      >
+                        {imageUrl ? (
+                          <div className="aspect-square w-full overflow-hidden rounded-xl ring-1 ring-black/10">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={imageUrl}
+                              alt={slot.character}
+                              className="size-full object-cover"
+                              draggable={false}
+                            />
+                          </div>
+                        ) : (
+                          // IDB Blob 없음 → 글자 텍스트 폴백 (카드 배경 대비 유지)
+                          <div
+                            className={cn(
+                              "flex aspect-square w-full items-center justify-center rounded-xl text-2xl font-bold ring-1",
+                              cardIsDark
+                                ? "bg-white/10 text-white ring-white/20"
+                                : "bg-black/5 text-foreground ring-black/10"
+                            )}
+                          >
+                            {slot.character}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              ))}
             </div>
           </div>
         )}

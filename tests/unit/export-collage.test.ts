@@ -10,8 +10,7 @@
  *   - backgroundToFillStyle
  *   - shouldUseIosFallback
  *   - canExport
- *   - getCellRects
- *   - getGridColumns
+ *   - getLineCellRects
  */
 
 import { describe, it, expect } from "vitest"
@@ -23,8 +22,7 @@ import {
 } from "@/features/compose/export-collage"
 import {
   backgroundToFillStyle,
-  getCellRects,
-  getGridColumns,
+  getLineCellRects,
 } from "@/lib/collage/render-collage-to-blob"
 import { SLOT_BACKGROUND_COLORS } from "@/lib/constants"
 
@@ -201,88 +199,79 @@ describe("canExport", () => {
 })
 
 // ─────────────────────────────────────────────────────────
-// getGridColumns
+// getLineCellRects — 작성자 지정 줄 배치 기반 셀 좌표
 // ─────────────────────────────────────────────────────────
-describe("getGridColumns", () => {
-  it("count=1 이면 1열을 반환한다", () => {
-    expect(getGridColumns(1)).toBe(1)
+describe("getLineCellRects", () => {
+  // 다중 줄 레이아웃: 2줄 × 3셀 (예: "오늘도" / "화이팅")
+  const twoRows = [
+    [0, 1, 2],
+    [3, 4, 5],
+  ]
+  // 길이가 다른 줄: 4셀 / 2셀 (예: "우리 동네" / "맛집")
+  const unevenRows = [
+    [0, 1, 2, 3],
+    [4, 5],
+  ]
+
+  it("전체 셀 수만큼 사각형을 반환하고, 인덱스가 슬롯 index와 일치한다", () => {
+    const rects = getLineCellRects(twoRows, 1080, 54)
+    expect(rects).toHaveLength(6)
+    // index 5는 두 번째 줄(아래)에 있어야 한다
+    expect(rects[5].y).toBeGreaterThan(rects[0].y)
   })
 
-  it("count=4 이면 2열을 반환한다 (ceil(sqrt(4))=2)", () => {
-    expect(getGridColumns(4)).toBe(2)
+  it("빈 줄 배치는 빈 배열을 반환한다", () => {
+    expect(getLineCellRects([], 1080, 54)).toHaveLength(0)
   })
 
-  it("count=9 이면 3열을 반환한다 (ceil(sqrt(9))=3)", () => {
-    expect(getGridColumns(9)).toBe(3)
+  it("같은 줄의 셀은 동일한 y를 가진다", () => {
+    const rects = getLineCellRects(twoRows, 1080, 54)
+    expect(rects[0].y).toBeCloseTo(rects[1].y, 5)
+    expect(rects[1].y).toBeCloseTo(rects[2].y, 5)
+    expect(rects[3].y).toBeCloseTo(rects[4].y, 5)
   })
 
-  it("count=0 이면 1을 반환한다 (최솟값 클램프)", () => {
-    expect(getGridColumns(0)).toBe(1)
+  it("아래 줄일수록 y가 증가한다 (행간 일정)", () => {
+    const rects = getLineCellRects(twoRows, 1080, 54)
+    expect(rects[3].y).toBeGreaterThan(rects[0].y)
   })
 
-  it("count=음수이면 1을 반환한다 (최솟값 클램프)", () => {
-    expect(getGridColumns(-5)).toBe(1)
-  })
-
-  it("최대 6열을 초과하지 않는다 (count=100)", () => {
-    expect(getGridColumns(100)).toBeLessThanOrEqual(6)
-  })
-
-  it("count=6 이면 결정론적이다 (동일 입력 → 동일 출력)", () => {
-    expect(getGridColumns(6)).toBe(getGridColumns(6))
-  })
-})
-
-// ─────────────────────────────────────────────────────────
-// getCellRects
-// ─────────────────────────────────────────────────────────
-describe("getCellRects", () => {
-  it("count개의 사각형을 반환한다", () => {
-    expect(getCellRects(6, 1080, 54)).toHaveLength(6)
-    expect(getCellRects(1, 1080, 54)).toHaveLength(1)
-    expect(getCellRects(10, 1080, 54)).toHaveLength(10)
-  })
-
-  it("count=0 이면 빈 배열을 반환한다", () => {
-    expect(getCellRects(0, 1080, 54)).toHaveLength(0)
-  })
-
-  it("반환된 사각형은 행-우선(row-major) 순서이다 (인덱스 = 슬롯 순서)", () => {
-    const rects = getCellRects(4, 1080, 54)
-    // 4개 = 2×2 그리드: 행0 col0, col1 → 행1 col0, col1
-    // 첫 번째 행의 두 rect는 y 좌표가 같아야 한다
-    expect(rects[0].y).toBeCloseTo(rects[1].y, 0)
-    // 두 번째 행의 두 rect는 y 좌표가 같아야 한다
-    expect(rects[2].y).toBeCloseTo(rects[3].y, 0)
-    // 두 번째 행은 첫 번째 행보다 y가 크다
-    expect(rects[2].y).toBeGreaterThan(rects[0].y)
-  })
-
-  it("모든 사각형의 w와 h가 양수이다", () => {
-    const rects = getCellRects(6, 1080, 54)
+  it("모든 셀은 정사각형이며 동일한 크기다", () => {
+    const rects = getLineCellRects(unevenRows, 1080, 54)
+    const w0 = rects[0].w
     for (const rect of rects) {
+      expect(rect.w).toBeCloseTo(rect.h, 5) // 정사각
+      expect(rect.w).toBeCloseTo(w0, 5) // 동일 크기
       expect(rect.w).toBeGreaterThan(0)
-      expect(rect.h).toBeGreaterThan(0)
     }
   })
 
-  it("사각형이 패딩 영역 안에 위치한다", () => {
+  it("각 줄은 줄 길이가 달라도 가로 중앙 정렬된다", () => {
+    const size = 1080
+    const rects = getLineCellRects(unevenRows, size, 54)
+    // 1줄(4셀): 좌측 끝 ~ 우측 끝의 중심 = 캔버스 중앙
+    const row1Center = (rects[0].x + rects[3].x + rects[3].w) / 2
+    expect(row1Center).toBeCloseTo(size / 2, 0)
+    // 2줄(2셀): 더 짧지만 마찬가지로 캔버스 중앙
+    const row2Center = (rects[4].x + rects[5].x + rects[5].w) / 2
+    expect(row2Center).toBeCloseTo(size / 2, 0)
+  })
+
+  it("모든 셀이 패딩 영역 안에 위치한다", () => {
     const size = 1080
     const padding = 54
-    const rects = getCellRects(6, size, padding)
+    const rects = getLineCellRects(twoRows, size, padding)
     for (const rect of rects) {
-      // 셀 중심 ± cellSize/2가 패딩 범위 내에 있어야 한다
-      expect(rect.x).toBeGreaterThanOrEqual(0)
-      expect(rect.y).toBeGreaterThanOrEqual(0)
-      expect(rect.x + rect.w).toBeLessThanOrEqual(size)
-      expect(rect.y + rect.h).toBeLessThanOrEqual(size)
+      expect(rect.x).toBeGreaterThanOrEqual(padding - 0.5)
+      expect(rect.y).toBeGreaterThanOrEqual(padding - 0.5)
+      expect(rect.x + rect.w).toBeLessThanOrEqual(size - padding + 0.5)
+      expect(rect.y + rect.h).toBeLessThanOrEqual(size - padding + 0.5)
     }
   })
 
-  it("count=1 이면 사각형이 캔버스 중앙에 위치한다", () => {
+  it("단일 셀(1줄 1글자)은 캔버스 중앙에 위치한다", () => {
     const size = 1080
-    const padding = 0
-    const [rect] = getCellRects(1, size, padding)
+    const [rect] = getLineCellRects([[0]], size, 0)
     const cx = rect.x + rect.w / 2
     const cy = rect.y + rect.h / 2
     expect(cx).toBeCloseTo(size / 2, 0)
