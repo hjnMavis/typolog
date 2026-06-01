@@ -30,6 +30,7 @@ export function CaptureClient({ challenge }: CaptureClientProps) {
     deselectSlot,
     fillSlot,
     setSlotImageUrl,
+    clearImageUrls,
     resetDraft,
   } = useChallengeStore()
 
@@ -90,12 +91,15 @@ export function CaptureClient({ challenge }: CaptureClientProps) {
     return () => {
       urls.forEach((url) => URL.revokeObjectURL(url))
       urls.clear()
+      // 폐기한 URL 문자열이 스토어에 남으면 재진입 시 죽은 blob:을 렌더하므로 함께 비운다.
+      // (재진입 시 복원 이펙트가 IDB에서 새 URL을 다시 만들도록)
+      clearImageUrls()
       if (sourceRef.current) {
         URL.revokeObjectURL(sourceRef.current)
         sourceRef.current = null
       }
     }
-  }, [challenge.id])
+  }, [challenge.id, clearImageUrls])
 
   const handleSlotTap = useCallback(
     (index: number) => {

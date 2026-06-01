@@ -244,6 +244,30 @@ describe("useChallengeStore", () => {
   })
 
   // ─────────────────────────────────────────────
+  // clearImageUrls
+  // ─────────────────────────────────────────────
+  describe("clearImageUrls", () => {
+    it("모든 슬롯의 imageDataUrl을 null로 비우되 메타데이터/상태는 유지한다", () => {
+      useChallengeStore.getState().initSlots(mockChallenge)
+      useChallengeStore.getState().fillSlot(0, META_0, "blob:url-0")
+      useChallengeStore
+        .getState()
+        .fillSlot(1, { imageKey: "test-1:1", fileName: "1.png", fileType: "image/png" }, "blob:url-1")
+
+      useChallengeStore.getState().clearImageUrls()
+
+      const slots = useChallengeStore.getState().slots
+      // 런타임 URL은 전부 비워짐 (revoke된 죽은 URL이 남지 않도록)
+      expect(slots[0].imageDataUrl).toBeNull()
+      expect(slots[1].imageDataUrl).toBeNull()
+      // 영속 메타데이터/상태는 그대로 → 재진입 시 IDB에서 재복원 가능
+      expect(slots[0].status).toBe("filled")
+      expect(slots[0].imageKey).toBe("test-1:0")
+      expect(slots[1].imageKey).toBe("test-1:1")
+    })
+  })
+
+  // ─────────────────────────────────────────────
   // clearSlot
   // ─────────────────────────────────────────────
   describe("clearSlot", () => {
