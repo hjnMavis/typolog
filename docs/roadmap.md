@@ -1,5 +1,9 @@
 # Typolog — Development Roadmap
 
+> **모든 Phase 공통 절차**: 각 Phase는 Day 단위로 진행되며, 모든 Day 작업은
+> `docs/day-workflow.md`의 **3-게이트 사이클**(① 계획 브리핑→[승인] → ② 구현→[QA 게이트] → ③ [학습 게이트] → 커밋·PR)을 따른다.
+> (Phase 0 세팅은 예외 — 메인 세션 직접 수행)
+
 ## 전체 타임라인 개요
 
 ```mermaid
