@@ -77,17 +77,38 @@ Mentor Agent:
 
 ## 작업 패턴
 
-### 기능 구현 사이클
+### Day 작업 사이클 (모든 Phase 공통)
+
+> 표준 절차의 단일 소스는 **`docs/day-workflow.md`** (7단계 / 3 게이트). 아래는 에이전트 관점 요약.
 
 ```mermaid
 graph TD
-    A["1. 작업 정의"] --> B["2. Frontend 또는 Backend: 계획 제안"]
-    B --> C{"사용자 승인?"}
-    C -->|"예"| D["3. 구현"]
+    A["1. 계획 브리핑 (메인 세션)"] --> C{"게이트 A: 사용자 승인?"}
+    C -->|"수정"| A
+    C -->|"승인"| D["2. Frontend/Backend: 구현"]
+    D --> E["Reviewer: 코드/보안 리뷰 → 반영"]
+    E --> GB["게이트 B (QA): QA 프롬프트 + E2E 체크리스트 동시 제공"]
+    GB --> F["3. QA Agent: 리뷰 md + 사용자 E2E 완료"]
+    F -->|"Critical/High"| D
+    F -->|"green"| GC["게이트 C (학습): 멘토 프롬프트"]
+    GC --> H["4. Mentor Agent: 학습 노트 md"]
+    H --> I["5. 커밋 & PR (3 게이트 통과 시)"]
+```
+
+산출물: QA 리뷰 `docs/reviews/phase{N}-day{M}-qa-review.md`, 학습 노트 `docs/learning/phase-{N}-day-{M}.md`.
+
+### 기능 구현 마이크로 사이클 (구현 단계 내부)
+
+구현(2번) 내부에서 구현 agent와 Reviewer가 도는 짧은 루프:
+
+```mermaid
+graph TD
+    A["작업 정의"] --> B["Frontend/Backend: 계획 제안"]
+    B --> C{"승인?"}
+    C -->|"예"| D["구현"]
     C -->|"수정"| B
-    D --> E["4. Reviewer: 코드 리뷰"]
-    E --> F["5. 구현 agent: 리뷰 반영"]
-    F --> G["6. 커밋"]
+    D --> E["Reviewer: 코드 리뷰"]
+    E --> F["구현 agent: 리뷰 반영"]
 ```
 
 ### TDD 사이클 (유틸/API)
