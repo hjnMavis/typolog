@@ -906,7 +906,17 @@ type ApiError = {
 
 ## 9. 구현 순서
 
-> **도구/스킬 메모**: Supabase Agent Skills(`supabase`, `supabase-postgres-best-practices`)가 설치되어 있다 — 구현 시 참고하되 **본 설계 문서가 source of truth**다. 특히 `supabase` 스킬은 마이그레이션을 Supabase CLI 관점으로 안내하므로, 우리 마이그레이션 방식(drizzle-kit / Supabase CLI / 하이브리드)은 Day 1 브리핑에서 명시적으로 확정한다.
+> **도구/스킬 메모**: Supabase Agent Skills(`supabase`, `supabase-postgres-best-practices`)가 설치되어 있다 — 구현 시 참고하되 **본 설계 문서가 source of truth**다. 특히 `supabase` 스킬은 마이그레이션을 Supabase CLI 관점으로 안내하지만, 마이그레이션 방식은 아래 "Day 1 확정 결정"대로 **하이브리드(drizzle-kit 일원화)**로 확정했다.
+
+### Day 1 확정 결정 (게이트 A 통과, 2026-06-04)
+
+| 항목 | 결정 |
+|------|------|
+| (a) 마이그레이션 | **하이브리드** — 테이블/인덱스는 `src/db/schema.ts` → `drizzle-kit generate`, RLS·trigger는 `drizzle-kit generate --custom` 빈 마이그레이션에 본 문서 §1.1·§3 SQL 복붙. 적용은 `drizzle-kit migrate`로 일원화. out = `src/db/migrations/` |
+| (b) 폴더 | **`src/db/`** 확정 (본 문서 부록·agent-view-workflow 파일 소유권과 일치). CLAUDE.md 폴더 구조 표의 `src/server/` 줄 갱신은 Day 1 PR에 포함 |
+| (c) DB 연결 | **Session pooler(5432) 유지 + postgres.js `prepare: false`** (추후 Vercel 배포 시 transaction pooler(6543) 전환 대비, 스킬 conn-prepared-statements 근거). 런타임 클라이언트 `src/db/index.ts`는 Day 1에 사용처가 없으므로 **Day 2 첫 작업**으로 생성 |
+| (d) env 템플릿 | `.env.local.example`에 DATABASE_URL 항목 추가(서버 전용 경고 주석 포함) + 주석 처리된 Supabase 키 항목 활성 정리 — Day 1 |
+| (e) 패키지 | **Day별 최소 설치** — Day 1: `drizzle-orm`·`postgres`(deps) + `drizzle-kit`(devDep) / Day 2: `@supabase/supabase-js`·`@supabase/ssr` / Day 3: `zod` |
 
 ### Phase 2 구현 순서 (5일)
 
