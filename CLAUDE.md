@@ -40,7 +40,7 @@ src/
 ├── stores/                — Zustand stores
 ├── hooks/                 — 커스텀 React hooks
 ├── types/                 — 공유 타입 정의
-└── server/                — 서버 전용 코드 (Week 2~)
+└── db/                    — Drizzle 스키마·마이그레이션 (Phase 2~)
 ```
 
 ## 라우트 구조
@@ -80,7 +80,7 @@ src/
 - **게이트 B (QA)**: QA 에이전트용 QA 프롬프트 + 사용자 직접 E2E 체크리스트를 **동시 제공**.
   QA 리포트(`docs/reviews/phase{N}-day{M}-qa-review.md`) 수령 + E2E 전 항목 완료 + Critical/High 0건이어야 통과.
 - **게이트 C (학습)**: 멘토 에이전트용 학습 프롬프트 제공 → 학습 노트(`docs/learning/phase-{N}-day-{M}.md`) 수령.
-- **커밋 & PR**: 세 게이트 모두 통과 시에만 Day 단위 1커밋 + PR. **AI 서명 없음.**
+- **커밋 & PR**: 세 게이트 모두 통과 시에만 커밋·PR. 커밋은 **작업 단위별로 분리**(기준: `docs/agent-view-workflow.md`), PR은 **Day 단위 1개**. **AI 서명 없음.**
 
 게이트는 차단 지점이다. 통과 전에는 다음 단계로 진행하지 않는다.
 

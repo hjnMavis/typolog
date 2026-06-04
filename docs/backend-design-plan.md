@@ -349,10 +349,14 @@ CREATE POLICY "submissions_insert"
   WITH CHECK (user_id = (SELECT auth.uid()));
 
 -- 본인만 수정 가능 (단, status를 'hidden'으로 바꾸는 건 서비스 키만)
+-- USING의 status != 'hidden': hidden 행을 UPDATE 대상에서 제외 — hidden→completed 복원 차단 (QA Day 1 H2)
 CREATE POLICY "submissions_update"
   ON submissions FOR UPDATE
   TO authenticated
-  USING (user_id = (SELECT auth.uid()))
+  USING (
+    user_id = (SELECT auth.uid())
+    AND status != 'hidden'
+  )
   WITH CHECK (
     user_id = (SELECT auth.uid())
     AND status != 'hidden'
@@ -361,10 +365,12 @@ CREATE POLICY "submissions_update"
 -- DELETE 정책 없음 = 차단
 ```
 
-**핵심 판단 — 왜 `status != 'hidden'` 체크?**
-- 일반 사용자가 `hidden` 상태로 직접 바꾸는 것을 방지
-- 관리자(Admin Client, 서비스 키)는 RLS를 우회하므로 `hidden` 설정 가능
-- 사용자가 `hidden`된 자기 제출을 `completed`로 되돌리는 것도 차단
+**핵심 판단 — 왜 `status != 'hidden'` 체크가 USING과 WITH CHECK 양쪽에 필요한가?**
+- **WITH CHECK의 `status != 'hidden'`**: 새 행을 검사 — 사용자가 `hidden`**으로** 바꾸는 것을 차단
+- **USING의 `status != 'hidden'`**: 기존 행 선택에서 제외 — `hidden`**에서** `completed`로 복원하는 것을 차단.
+  WITH CHECK만으로는 복원이 통과한다 (새 행의 status가 'completed'이므로 검사를 만족) — Phase 2 Day 1 QA에서 실제 DB 재현으로 확인된 갭(H2)
+- 결과적으로 hidden 행은 소유자도 어떤 컬럼도 수정 불가 (fail-closed)
+- 관리자(Admin Client, 서비스 키)는 RLS를 우회하므로 `hidden` 설정·해제 가능
 
 ### 3.4 letter_pieces
 
@@ -479,6 +485,37 @@ CREATE POLICY "reports_insert"
 | letter_pieces | submission 소유자 또는 공개 submission | submission 소유자 | submission 소유자 | submission 소유자 |
 | reactions | 인증 전체 | 인증(본인) | 차단 | 본인 |
 | reports | 차단 (서비스 키만) | 인증(본인) | 차단 | 차단 |
+
+### 3.7 테이블 권한(GRANT) — RLS 이전의 1차 관문
+
+> drizzle-kit(=postgres role 직결)로 생성한 테이블에는 Supabase가 대시보드 생성 테이블에 적용하는
+> 자동 GRANT가 걸리지 않는다 (anon/authenticated에 REFERENCES/TRIGGER/TRUNCATE만 남음 — Phase 2 Day 1 QA H1).
+> GRANT는 RLS **이전에** 평가되는 별도 레이어라서, GRANT가 없으면 정책에 도달하지도 못한다.
+> Storage 정책(§5)의 `EXISTS (SELECT … FROM submissions)` 서브쿼리도 요청자 role로 실행되므로
+> anon/authenticated의 submissions SELECT GRANT가 필수다.
+> 원칙: **RLS 정책 요약표가 허용하는 동작과 1:1로 정렬된 최소 권한만 부여한다.**
+
+```sql
+GRANT SELECT ON challenges TO anon, authenticated;
+GRANT SELECT ON submissions TO anon, authenticated;
+GRANT INSERT, UPDATE ON submissions TO authenticated;
+GRANT SELECT, UPDATE ON profiles TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON letter_pieces TO authenticated;
+GRANT SELECT, INSERT, DELETE ON reactions TO authenticated;
+GRANT INSERT ON reports TO authenticated;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
+```
+
+| 테이블 | anon | authenticated |
+|--------|------|---------------|
+| challenges | SELECT | SELECT |
+| submissions | SELECT | SELECT, INSERT, UPDATE |
+| profiles | — | SELECT, UPDATE |
+| letter_pieces | — | SELECT, INSERT, UPDATE, DELETE |
+| reactions | — | SELECT, INSERT, DELETE |
+| reports | — | INSERT |
+
+(service_role은 ALL — Admin Client 운영용. RLS 우회와 별개로 GRANT도 필요하다.)
 
 ---
 
@@ -890,6 +927,7 @@ type ApiError = {
 4. **Storage upsert엔 INSERT+SELECT+UPDATE 모두**: 글자 교체(UPSERT) 시 INSERT만 주면 덮어쓰기가 조용히 실패한다. (letter-pieces 정책, Day 3)
 5. **인증 결정에 `user_metadata` 금지**: `raw_user_meta_data`는 사용자가 수정 가능. 인가는 `app_metadata`로. 노출 스키마의 모든 테이블에 RLS enable.
 6. **정책의 auth 함수는 `(SELECT auth.uid())`로 래핑**: bare `auth.uid()`는 행마다 평가되지만, `(SELECT ...)`로 감싸면 1회 평가 후 캐시(initPlan)되어 대형 테이블에서 100x 차이. 테이블·Storage 정책 전체에 적용한다. (§3·§5 SQL 반영, `supabase-postgres-best-practices` 스킬 security-rls-performance)
+7. **GRANT는 RLS 이전의 1차 관문**: 외부 도구(drizzle-kit 등 postgres role 직결)로 만든 테이블엔 Supabase 자동 GRANT가 없다. 정책이 허용하는 동작과 1:1로 정렬된 최소 GRANT를 마이그레이션에 명시한다. GRANT 없는 정책은 도달 불가(permission denied), 정책 없는 GRANT는 RLS가 0행 처리. (§3.7, Phase 2 Day 1 QA H1)
 
 > 정책엔 `TO authenticated`/`TO anon`로 역할을 직접 지정하고(`auth.role()` 지양), `USING`에 소유권 술어를 함께 둔다. 변경 후 `supabase db advisors`(또는 MCP `get_advisors`)로 점검 권장.
 

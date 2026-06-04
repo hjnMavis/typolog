@@ -84,7 +84,8 @@ Day N 시작
 - Mentor 에이전트가 `docs/learning/phase-{N}-day-{M}.md`를 작성한다.
 
 ### 5. 커밋 & PR
-- 세 게이트 통과 후, 그날 작업을 **Day 단위 1커밋**으로 커밋하고 PR을 연다.
+- 세 게이트 통과 후, 그날 작업을 **작업 단위별 커밋**으로 나눠 커밋하고 **Day 단위 PR 1개**를 연다.
+- 커밋을 쪼개는 기준은 `docs/agent-view-workflow.md`의 "작업 단위 쪼개는 기준"을 따른다 (하나의 작업 = 하나의 의미 있는 커밋, 분리 금지 케이스 — 예: DB 스키마 DDL + RLS 정책 — 준수).
 - 커밋 메시지·PR 본문에 **AI 공동저자/생성 서명을 넣지 않는다.**
 - 커밋 메시지는 영어, 설명은 한국어 (CLAUDE.md 규칙).
 
@@ -96,7 +97,7 @@ Day N 시작
 |--------|----------|------|------|
 | QA 리뷰 | `docs/reviews/phase{N}-day{M}-qa-review.md` | QA 에이전트 | 예: `phase2-day1-qa-review.md` |
 | 학습 노트 | `docs/learning/phase-{N}-day-{M}.md` | Mentor 에이전트 | 예: `phase-2-day-1.md` |
-| 커밋 / PR | Day 단위 1커밋 + PR | 메인 세션 | AI 서명 없음 |
+| 커밋 / PR | 작업 단위별 커밋 + Day 단위 PR 1개 | 메인 세션 | AI 서명 없음 |
 
 > ⚠️ **네이밍 불일치 (의도적 유지)**: 두 디렉토리의 기존 관례가 다르다.
 > - `docs/reviews/` → `phase{N}-day{M}-...` (대시 없음: `phase2-day1`)
