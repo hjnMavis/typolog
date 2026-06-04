@@ -43,3 +43,7 @@ next-env.d.ts
 
 # git worktrees (local agent worktrees, must not be tracked)
 .claude/worktrees/
+
+# agent skills: canonical copy maintained by the `skills` CLI.
+# Claude Code reads .claude/skills/ (committed), so this duplicate is ignored.
+.agents/
