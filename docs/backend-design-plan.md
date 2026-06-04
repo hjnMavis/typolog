@@ -893,6 +893,15 @@ type ApiError = {
 
 > 정책엔 `TO authenticated`/`TO anon`로 역할을 직접 지정하고(`auth.role()` 지양), `USING`에 소유권 술어를 함께 둔다. 변경 후 `supabase db advisors`(또는 MCP `get_advisors`)로 점검 권장.
 
+### 8.5 Supabase 프로젝트 보안 설정 결정 (2026-06-04 확정, Day 2 적용)
+
+스킬 대조 브리핑에서 확정한 프로젝트 수준 보안 결정 2건. 적용 시점은 Day 2(2-6 클라이언트 구현일).
+
+1. **Data API(REST) 비노출**: DB 접근은 서버의 Drizzle 직결만 사용하고 supabase-js는 Auth/Storage 전용이므로(architecture.md), Data API는 사용하지 않는 공격 표면이다. Dashboard → Project Settings → Data API → **Exposed schemas에서 `public` 제거**. RLS 정책 실수(느슨한 USING, RLS enable 누락)가 나도 REST 경로 자체가 차단되는 defense in depth.
+   - 검증(Day 2 E2E): publishable 키로 `/rest/v1/challenges` 호출 → 401/404 확인
+   - 되돌림 조건: Phase 3+에서 supabase-js 직접 쿼리·Realtime이 필요해지면 재노출 검토
+2. **신규 API 키 체계 + env 네이밍 정리**: 프로젝트 키는 신규 체계(`sb_publishable_…`/`sb_secret_…`)다. env 변수명을 legacy 명칭(`ANON_KEY`/`SERVICE_ROLE_KEY`)에서 **`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` / `SUPABASE_SECRET_KEY`**로 정리한다 — `.env.local` + `.env.local.example` + 코드 참조를 Day 2에 동시 변경(따로 하면 drift). `sb_secret_` 키는 service_role과 동일하게 RLS를 우회하므로 서버 전용 — `NEXT_PUBLIC_` 금지 규칙 동일 적용. 변수명 최종 표기는 Day 2 시작 시 현행 Supabase docs 기준으로 1회 재확인.
+
 ---
 
 ## 9. 구현 순서
@@ -919,7 +928,8 @@ Day 2: 인증 + 클라이언트
 │   ├── /api/auth/callback Route Handler
 │   └── 세션 관리 (쿠키)
 ├── 2-8. Next.js Middleware (인증 체크)
-└── 2-9. profiles trigger 동작 확인
+├── 2-9. profiles trigger 동작 확인
+└── (보안) §8.5 결정 적용 — Data API 비노출 + env 키 네이밍 정리
 
 Day 3: 핵심 API + Storage
 ├── 2-10. Storage 버킷 3개 생성 + 정책 적용
