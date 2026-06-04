@@ -356,10 +356,12 @@ CREATE POLICY "본인 데이터만 읽기" ON submissions
 
 **실습 태스크**
 
-- [ ] RLS 없이 테이블에 데이터를 넣고, 다른 유저의 데이터도 조회되는지 확인
-- [ ] RLS를 켜고 같은 쿼리를 실행 — 본인 데이터만 나오는지 확인
-- [ ] `USING`과 `WITH CHECK`를 각각 써서 읽기/쓰기 정책을 다르게 설정해보기
+- [x] RLS 없이 테이블에 데이터를 넣고, 다른 유저의 데이터도 조회되는지 확인 — (Phase 2 Day 1: QA RLS 시나리오 S4/S5에서 본인/타인 접근 차이 검증)
+- [x] RLS를 켜고 같은 쿼리를 실행 — 본인 데이터만 나오는지 확인 — (Phase 2 Day 1: submissions_select 정책, `0001_..._trigger.sql:54-67`)
+- [x] `USING`과 `WITH CHECK`를 각각 써서 읽기/쓰기 정책을 다르게 설정해보기 — (Phase 2 Day 1: submissions_update의 비대칭 — H2 사례, `docs/learning/phase-2-day-1.md §4`)
 - [ ] Supabase 대시보드의 "RLS Policy" 탭에서 정책 확인하는 방법 익히기
+
+> **Phase 2 Day 1 학습 노트**: `docs/learning/phase-2-day-1.md` — RLS(USING vs WITH CHECK), GRANT vs RLS 2단 관문, SECURITY DEFINER trigger, 하이브리드 마이그레이션, Drizzle 스키마 표현, `(SELECT auth.uid())` 캐싱, DATABASE_URL % 인코딩. QA H1(GRANT 누락)/H2(hidden 복원) 실전 사례 포함.
 
 ---
 
@@ -1269,8 +1271,17 @@ Phase 5+ (프로덕션 운영)
 - [ ] JWT가 뭔지, 어디에 저장되는지 설명할 수 있다
 - [ ] Supabase Storage에 파일을 업로드/다운로드할 수 있다
 - [ ] Public vs Private 버킷의 차이를 설명할 수 있다
-- [ ] RLS 정책을 읽고 "누가 무엇을 할 수 있는지" 해석할 수 있다
+- [x] RLS 정책을 읽고 "누가 무엇을 할 수 있는지" 해석할 수 있다 — (Phase 2 Day 1: 15정책 + 요약표 해석, `docs/learning/phase-2-day-1.md §4`)
 - [ ] Signed URL을 만들고 사용할 수 있다
+
+#### Phase 2 Day 1에서 추가로 익힌 것 (DB 기반 설정)
+- [x] GRANT와 RLS가 별개의 2단 관문임을 설명할 수 있다 — GRANT 없으면 RLS에 도달 못 함 (QA H1)
+- [x] USING(기존 행 선택)과 WITH CHECK(새 행 저장)의 차이를 hidden 복원 사례로 설명할 수 있다 (QA H2)
+- [x] SECURITY DEFINER trigger의 3종 안전장치를 설명할 수 있다 (`SET search_path=''` + `REVOKE EXECUTE` + 입력 클램프)
+- [x] 하이브리드 마이그레이션(`generate` vs `generate --custom`)과 저널 테이블을 설명할 수 있다
+- [x] Drizzle 스키마로 check/unique/부분 인덱스/authUsers FK를 표현할 수 있다
+- [x] `(SELECT auth.uid())` 래핑이 행마다 재평가를 막는 캐시임을 설명할 수 있다
+- [x] DATABASE_URL의 비밀번호 % 인코딩 함정을 설명할 수 있다 (Session pooler 5432)
 
 ### Phase 3 체크리스트
 - [ ] `useQuery`와 `useMutation`의 차이를 설명할 수 있다
