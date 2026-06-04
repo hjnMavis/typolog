@@ -40,7 +40,7 @@ src/
 ├── stores/                — Zustand stores
 ├── hooks/                 — 커스텀 React hooks
 ├── types/                 — 공유 타입 정의
-└── server/                — 서버 전용 코드 (Week 2~)
+└── db/                    — Drizzle 스키마·마이그레이션 (Phase 2~)
 ```
 
 ## 라우트 구조
