@@ -49,31 +49,37 @@ CREATE TABLE profiles (
 );
 
 -- 자동 생성 trigger
-CREATE OR REPLACE FUNCTION handle_new_user()
+CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
   INSERT INTO public.profiles (id, nickname)
   VALUES (
     NEW.id,
-    COALESCE(
-      NEW.raw_user_meta_data->>'name',
-      'user_' || LEFT(NEW.id::TEXT, 8)
+    LEFT(
+      COALESCE(
+        NEW.raw_user_meta_data->>'name',
+        'user_' || LEFT(NEW.id::TEXT, 8)
+      ),
+      20
     )
   );
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = '';
+
+-- trigger 함수는 직접 호출될 일이 없다 — 기본 부여되는 EXECUTE 회수 (공개 API화 방지)
+REVOKE EXECUTE ON FUNCTION public.handle_new_user() FROM PUBLIC, anon, authenticated;
 
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW
-  EXECUTE FUNCTION handle_new_user();
+  EXECUTE FUNCTION public.handle_new_user();
 ```
 
 **설계 포인트**:
 - PK가 `auth.users(id)`와 동일 → 1:1 관계
-- `SECURITY DEFINER`: trigger 함수가 RLS를 우회해서 INSERT 가능
-- `nickname` 기본값: OAuth에서 가져온 이름 또는 `user_` + UUID 앞 8자리
+- `SECURITY DEFINER`: trigger 함수가 RLS를 우회해서 INSERT 가능. `SET search_path = ''`로 search_path 하이재킹 방지(본문은 `public.profiles`로 정규화), `REVOKE EXECUTE`로 anon/authenticated의 직접 호출 차단 — public 스키마 함수는 기본적으로 PUBLIC에 EXECUTE가 부여되기 때문 (§8.4-③)
+- `nickname` 기본값: OAuth에서 가져온 이름 또는 `user_` + UUID 앞 8자리. `LEFT(..., 20)` 클램프로 validation 규칙(2~20자, §7.2)과 정합
 - `updated_at`은 수동 관리 (UPDATE 시 `now()` 세팅) — Drizzle에서 처리
 
 **MVP에서 하지 않는 것**:
@@ -299,8 +305,8 @@ CREATE POLICY "profiles_select"
 CREATE POLICY "profiles_update"
   ON profiles FOR UPDATE
   TO authenticated
-  USING (auth.uid() = id)
-  WITH CHECK (auth.uid() = id);
+  USING ((SELECT auth.uid()) = id)
+  WITH CHECK ((SELECT auth.uid()) = id);
 
 -- INSERT는 trigger만 (일반 사용자 차단)
 -- DELETE 정책 없음 = 차단
@@ -326,7 +332,7 @@ CREATE POLICY "submissions_select"
   ON submissions FOR SELECT
   TO authenticated
   USING (
-    user_id = auth.uid()
+    user_id = (SELECT auth.uid())
     OR (status = 'completed' AND is_public = true)
   );
 
@@ -340,15 +346,15 @@ CREATE POLICY "submissions_select_anon"
 CREATE POLICY "submissions_insert"
   ON submissions FOR INSERT
   TO authenticated
-  WITH CHECK (user_id = auth.uid());
+  WITH CHECK (user_id = (SELECT auth.uid()));
 
 -- 본인만 수정 가능 (단, status를 'hidden'으로 바꾸는 건 서비스 키만)
 CREATE POLICY "submissions_update"
   ON submissions FOR UPDATE
   TO authenticated
-  USING (user_id = auth.uid())
+  USING (user_id = (SELECT auth.uid()))
   WITH CHECK (
-    user_id = auth.uid()
+    user_id = (SELECT auth.uid())
     AND status != 'hidden'
   );
 
@@ -372,7 +378,7 @@ CREATE POLICY "letter_pieces_select"
       SELECT 1 FROM submissions s
       WHERE s.id = letter_pieces.submission_id
       AND (
-        s.user_id = auth.uid()
+        s.user_id = (SELECT auth.uid())
         OR (s.status = 'completed' AND s.is_public = true)
       )
     )
@@ -386,11 +392,12 @@ CREATE POLICY "letter_pieces_insert"
     EXISTS (
       SELECT 1 FROM submissions s
       WHERE s.id = letter_pieces.submission_id
-      AND s.user_id = auth.uid()
+      AND s.user_id = (SELECT auth.uid())
     )
   );
 
 -- 본인 submission만 UPDATE (글자 교체 = UPSERT)
+-- USING + WITH CHECK 둘 다 필수 — WITH CHECK가 없으면 행을 타인 submission으로 재할당 가능 (§8.4-②)
 CREATE POLICY "letter_pieces_update"
   ON letter_pieces FOR UPDATE
   TO authenticated
@@ -398,7 +405,14 @@ CREATE POLICY "letter_pieces_update"
     EXISTS (
       SELECT 1 FROM submissions s
       WHERE s.id = letter_pieces.submission_id
-      AND s.user_id = auth.uid()
+      AND s.user_id = (SELECT auth.uid())
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM submissions s
+      WHERE s.id = letter_pieces.submission_id
+      AND s.user_id = (SELECT auth.uid())
     )
   );
 
@@ -410,7 +424,7 @@ CREATE POLICY "letter_pieces_delete"
     EXISTS (
       SELECT 1 FROM submissions s
       WHERE s.id = letter_pieces.submission_id
-      AND s.user_id = auth.uid()
+      AND s.user_id = (SELECT auth.uid())
     )
   );
 ```
@@ -430,13 +444,13 @@ CREATE POLICY "reactions_select"
 CREATE POLICY "reactions_insert"
   ON reactions FOR INSERT
   TO authenticated
-  WITH CHECK (user_id = auth.uid());
+  WITH CHECK (user_id = (SELECT auth.uid()));
 
 -- 본인만 삭제 (좋아요 취소)
 CREATE POLICY "reactions_delete"
   ON reactions FOR DELETE
   TO authenticated
-  USING (user_id = auth.uid());
+  USING (user_id = (SELECT auth.uid()));
 
 -- UPDATE 정책 없음 = 차단
 ```
@@ -450,7 +464,7 @@ CREATE POLICY "reactions_delete"
 CREATE POLICY "reports_insert"
   ON reports FOR INSERT
   TO authenticated
-  WITH CHECK (reporter_id = auth.uid());
+  WITH CHECK (reporter_id = (SELECT auth.uid()));
 
 -- UPDATE/DELETE 정책 없음 = 차단
 ```
@@ -518,7 +532,7 @@ CREATE POLICY "letter_pieces_read"
   TO authenticated
   USING (
     bucket_id = 'letter-pieces'
-    AND (storage.foldername(name))[1] = auth.uid()::TEXT
+    AND (storage.foldername(name))[1] = (SELECT auth.uid())::TEXT
   );
 
 -- 본인만 쓰기
@@ -527,7 +541,7 @@ CREATE POLICY "letter_pieces_write"
   TO authenticated
   WITH CHECK (
     bucket_id = 'letter-pieces'
-    AND (storage.foldername(name))[1] = auth.uid()::TEXT
+    AND (storage.foldername(name))[1] = (SELECT auth.uid())::TEXT
   );
 
 -- 본인만 덮어쓰기 (글자 교체)
@@ -536,7 +550,7 @@ CREATE POLICY "letter_pieces_update"
   TO authenticated
   USING (
     bucket_id = 'letter-pieces'
-    AND (storage.foldername(name))[1] = auth.uid()::TEXT
+    AND (storage.foldername(name))[1] = (SELECT auth.uid())::TEXT
   );
 
 -- 본인만 삭제
@@ -545,7 +559,7 @@ CREATE POLICY "letter_pieces_delete"
   TO authenticated
   USING (
     bucket_id = 'letter-pieces'
-    AND (storage.foldername(name))[1] = auth.uid()::TEXT
+    AND (storage.foldername(name))[1] = (SELECT auth.uid())::TEXT
   );
 ```
 
@@ -560,7 +574,7 @@ CREATE POLICY "collages_read"
     bucket_id = 'collages'
     AND (
       -- 본인
-      (storage.foldername(name))[1] = auth.uid()::TEXT
+      (storage.foldername(name))[1] = (SELECT auth.uid())::TEXT
       OR
       -- 공개 제출: submission_id로 submissions 테이블 조인
       EXISTS (
@@ -592,7 +606,7 @@ CREATE POLICY "collages_write"
   TO authenticated
   WITH CHECK (
     bucket_id = 'collages'
-    AND (storage.foldername(name))[1] = auth.uid()::TEXT
+    AND (storage.foldername(name))[1] = (SELECT auth.uid())::TEXT
   );
 
 -- 본인만 삭제
@@ -601,7 +615,7 @@ CREATE POLICY "collages_delete"
   TO authenticated
   USING (
     bucket_id = 'collages'
-    AND (storage.foldername(name))[1] = auth.uid()::TEXT
+    AND (storage.foldername(name))[1] = (SELECT auth.uid())::TEXT
   );
 ```
 
@@ -617,7 +631,7 @@ CREATE POLICY "avatars_write"
   TO authenticated
   WITH CHECK (
     bucket_id = 'avatars'
-    AND (storage.foldername(name))[1] = auth.uid()::TEXT
+    AND (storage.foldername(name))[1] = (SELECT auth.uid())::TEXT
   );
 
 CREATE POLICY "avatars_delete"
@@ -625,7 +639,7 @@ CREATE POLICY "avatars_delete"
   TO authenticated
   USING (
     bucket_id = 'avatars'
-    AND (storage.foldername(name))[1] = auth.uid()::TEXT
+    AND (storage.foldername(name))[1] = (SELECT auth.uid())::TEXT
   );
 ```
 
@@ -872,9 +886,10 @@ type ApiError = {
 
 1. **UPDATE 정책엔 SELECT 정책도 필요**: RLS에서 UPDATE는 대상 행을 먼저 SELECT한다. SELECT 정책이 없으면 update가 에러 없이 0행 처리된다. (submissions·letter_pieces 확인)
 2. **UPDATE 정책은 `USING` + `WITH CHECK` 둘 다**: WITH CHECK가 없으면 사용자가 행의 `user_id`를 타인 것으로 재할당할 수 있다.
-3. **`SECURITY DEFINER` 주의**: `handle_new_user()`는 RLS를 우회한다. public 스키마의 SECURITY DEFINER 함수는 `anon`/`authenticated`가 EXECUTE 가능하므로, 본문에 검증을 두고 권한 에러를 SECURITY DEFINER로 덮지 않는다.
+3. **`SECURITY DEFINER` 주의**: `handle_new_user()`는 RLS를 우회한다. public 스키마의 SECURITY DEFINER 함수는 기본적으로 PUBLIC에 EXECUTE가 부여되어 `anon`/`authenticated`가 호출 가능하므로, ① 본문에 검증을 두고 권한 에러를 SECURITY DEFINER로 덮지 않으며 ② `SET search_path = ''`를 고정하고 ③ 직접 호출이 불필요한 함수(trigger 함수)는 `REVOKE EXECUTE ... FROM PUBLIC, anon, authenticated`로 회수한다. (§1.1 SQL 반영)
 4. **Storage upsert엔 INSERT+SELECT+UPDATE 모두**: 글자 교체(UPSERT) 시 INSERT만 주면 덮어쓰기가 조용히 실패한다. (letter-pieces 정책, Day 3)
 5. **인증 결정에 `user_metadata` 금지**: `raw_user_meta_data`는 사용자가 수정 가능. 인가는 `app_metadata`로. 노출 스키마의 모든 테이블에 RLS enable.
+6. **정책의 auth 함수는 `(SELECT auth.uid())`로 래핑**: bare `auth.uid()`는 행마다 평가되지만, `(SELECT ...)`로 감싸면 1회 평가 후 캐시(initPlan)되어 대형 테이블에서 100x 차이. 테이블·Storage 정책 전체에 적용한다. (§3·§5 SQL 반영, `supabase-postgres-best-practices` 스킬 security-rls-performance)
 
 > 정책엔 `TO authenticated`/`TO anon`로 역할을 직접 지정하고(`auth.role()` 지양), `USING`에 소유권 술어를 함께 둔다. 변경 후 `supabase db advisors`(또는 MCP `get_advisors`)로 점검 권장.
 
