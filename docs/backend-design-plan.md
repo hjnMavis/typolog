@@ -866,9 +866,23 @@ type ApiError = {
 5. **CSRF**: Server Action은 Next.js가 기본 CSRF 보호 제공. Route Handler는 Supabase Auth 토큰 검증으로 대체
 6. **Kakao OAuth**: Supabase에서 Kakao는 커스텀 OIDC 설정 필요. Google보다 설정 복잡
 
+### 8.4 RLS·trigger·Storage 구현 시 반드시 지킬 것 (Supabase 공식 스킬 반영, 2026-06)
+
+`supabase` Agent Skill(`.claude/skills/supabase`)이 짚은 Supabase 고유 보안 함정. RLS/trigger/Storage 정책 작성 시 점검한다.
+
+1. **UPDATE 정책엔 SELECT 정책도 필요**: RLS에서 UPDATE는 대상 행을 먼저 SELECT한다. SELECT 정책이 없으면 update가 에러 없이 0행 처리된다. (submissions·letter_pieces 확인)
+2. **UPDATE 정책은 `USING` + `WITH CHECK` 둘 다**: WITH CHECK가 없으면 사용자가 행의 `user_id`를 타인 것으로 재할당할 수 있다.
+3. **`SECURITY DEFINER` 주의**: `handle_new_user()`는 RLS를 우회한다. public 스키마의 SECURITY DEFINER 함수는 `anon`/`authenticated`가 EXECUTE 가능하므로, 본문에 검증을 두고 권한 에러를 SECURITY DEFINER로 덮지 않는다.
+4. **Storage upsert엔 INSERT+SELECT+UPDATE 모두**: 글자 교체(UPSERT) 시 INSERT만 주면 덮어쓰기가 조용히 실패한다. (letter-pieces 정책, Day 3)
+5. **인증 결정에 `user_metadata` 금지**: `raw_user_meta_data`는 사용자가 수정 가능. 인가는 `app_metadata`로. 노출 스키마의 모든 테이블에 RLS enable.
+
+> 정책엔 `TO authenticated`/`TO anon`로 역할을 직접 지정하고(`auth.role()` 지양), `USING`에 소유권 술어를 함께 둔다. 변경 후 `supabase db advisors`(또는 MCP `get_advisors`)로 점검 권장.
+
 ---
 
 ## 9. 구현 순서
+
+> **도구/스킬 메모**: Supabase Agent Skills(`supabase`, `supabase-postgres-best-practices`)가 설치되어 있다 — 구현 시 참고하되 **본 설계 문서가 source of truth**다. 특히 `supabase` 스킬은 마이그레이션을 Supabase CLI 관점으로 안내하므로, 우리 마이그레이션 방식(drizzle-kit / Supabase CLI / 하이브리드)은 Day 1 브리핑에서 명시적으로 확정한다.
 
 ### Phase 2 구현 순서 (5일)
 
