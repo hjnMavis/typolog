@@ -910,9 +910,9 @@ type ApiError = {
 
 ### 8.3 MVP에서 미대응하지만 인지해야 할 것
 
-1. **서버 EXIF strip**: 악의적 사용자가 API를 직접 호출해 EXIF 포함 이미지를 업로드할 수 있음. 서버에서 sharp 등으로 재처리하는 것이 이상적이나, MVP에서는 미구현
+1. **서버 EXIF strip + magic-byte 검사**: 업로드 검증은 MVP에서 MIME 헤더 + 크기까지만 한다(Day 3-(f), §7.5). 악의적 사용자가 API를 직접 호출해 EXIF 포함 이미지나 Content-Type을 위조한 파일을 업로드할 수 있음 — 서버 EXIF strip(sharp 등)과 파일 시그니처(magic-byte) 검사·디코딩 유효성은 이상적이나 MVP 제외, 리스크로 이관
 2. **Rate limiting**: API 레벨 rate limiting 없음. 남용 시 Supabase 제한에 의존
-3. **Storage cleanup**: 계정 삭제 시 DB는 CASCADE로 정리되지만 Storage 파일은 남음
+3. **Storage cleanup + 고아 파일**: 계정 삭제 시 DB는 CASCADE로 정리되지만 Storage 파일은 남음. 또한 글자 업로드(A5)는 Storage 업로드와 DB UPSERT가 원자적이지 않아 DB 실패 시 고아 파일이 남을 수 있다 — 같은 path 재업로드로 덮어써져 손상은 없으나(실패 시 path 로깅) 누적분은 후속 cleanup 잡으로 이관
 4. **Content moderation**: 부적절한 이미지 업로드 탐지 없음. 신고 + 수동 처리에 의존
 5. **CSRF**: Server Action은 Next.js가 기본 CSRF 보호 제공. Route Handler는 Supabase Auth 토큰 검증으로 대체
 6. **Kakao OAuth**: Supabase에서 Kakao는 커스텀 OIDC 설정 필요. Google보다 설정 복잡
@@ -969,6 +969,18 @@ type ApiError = {
 | (e) 작업 단위 | **3단위 = PR 3개** (커밋·PR 정책 개정 2026-06-05: 작업 단위별 PR + PR 내 세분 커밋) — U1: db runtime client+M2(직접 2파일) / U2: env 정리+Supabase 클라이언트 3종(4파일) / U3: login+callback+proxy(4파일). 의존 순서 U1→U2→U3 순차 머지, 게이트 A 문서 동기화는 U1 PR에 docs 커밋으로 포함 |
 | (f) proxy 컨벤션 | Next.js 16(`middleware.ts` deprecated → proxy 개명) 확인 → **`src/proxy.ts`** 채택. 관련 문서 표기 동기화 완료 |
 | (g) server-only | `server-only` 패키지 설치 — `src/lib/supabase/admin.ts`·`src/db/index.ts`에 import 가드(클라이언트 번들 유입 시 빌드 타임 실패) |
+
+### Day 3 확정 결정 (게이트 A 통과, 2026-06-08)
+
+| 항목 | 결정 |
+|------|------|
+| (a) Storage 버킷·정책 생성 | **drizzle-kit `--custom` 마이그레이션(0003)으로 일원화** (Day 1 RLS와 동일 패턴). 버킷은 `insert into storage.buckets`(id·public·file_size_limit·allowed_mime_types), 정책은 §5 SQL을 `storage.objects`에 그대로. storage 스키마는 schemaFilter(public) 밖이므로 커스텀 SQL로만. 대시보드 수동 생성은 drift 우려로 배제. **권한 프로브 확인됨(2026-06-08, 롤백 테스트)**: 연결 role=`postgres`(non-superuser)로 `storage.buckets` INSERT + `storage.objects` CREATE POLICY **모두 가능** → 마이그레이션 경로로 그대로 진행, 사용자 대시보드 선행작업 불필요. **(만일의 fallback)** 환경이 바뀌어 `CREATE POLICY`가 `must be owner`로 막히면 동일 SQL을 Supabase SQL Editor(상위 권한)에서 실행. §5 정책·버킷 사양은 경로와 무관하게 동일 |
+| (b) DB/Storage 접근 분업 | **DB = Drizzle 직결(RLS 우회 → 코드로 소유권 검증), Storage = supabase server client(버킷 정책=RLS)** 확정. Data API 비노출(§8.5-1)의 논리적 귀결. 소유권 검증은 `getClaims().sub` 기반 **공통 헬퍼**(`requireOwner` 류)로 묶어 누락 방지 |
+| (c) zod + 공통 유틸 | **`zod` 설치**(Day별 최소 설치 원칙) + `src/lib/validations/*`(§7.1) + 표준 에러 응답 헬퍼(`ApiError`, §7.4) + 인증 헬퍼(`getAuthUser`). U1(기반)에서 일괄 스캐폴딩 |
+| (d) seed 주입 방식 | **마이그레이션과 분리된 별도 seed SQL/스크립트**(데이터는 스키마와 분리 — 마이그레이션 INSERT는 모든 환경 강제). **active_date는 오늘(2026-06-08) 포함 ±며칠로 생성**해 `/today`가 동작하도록. 수동 1회 실행, 커밋되더라도 마이그레이션 lineage 밖 |
+| (e) 작업 단위 | **3단위 = PR 3개** — U1 `phase2-day3-foundation`: zod+validations+에러/auth 헬퍼+Storage 버킷·정책 마이그레이션(0003) / U2 `phase2-day3-challenges-api`: `GET /api/challenges/today`+seed / U3 `phase2-day3-submissions-upload`: `POST /api/submissions`(draft)+`POST /.../letters`(Storage+DB). 의존 U1→U2→U3 순차 머지, 게이트 A 문서 동기화는 U1 docs 커밋에 포함. base=main(CI는 main 대상 PR만 실행) |
+| (f) 업로드 검증 범위 | **MVP는 MIME 타입 + 파일 크기까지만**(§7.5). magic-byte 검사·서버측 EXIF strip은 **리스크로 기록 후 이관**(클라이언트 EXIF strip은 Phase 1에 존재). 디코딩 유효성도 MVP 제외 |
+| (g) Day 2 이관분 처리 | **M2(보안) 처리 + M3(최적화) 함께 처리 권장.** M2: callback `next`를 알려진 내부 경로 prefix 집합으로 협소화. M3: proxy matcher에서 `/api/*`(또는 `/api/auth`) 제외 여부를 API 작업과 함께 결정. Day 1 이관: zod에서 `challenges.lines/letters` 빈 배열 금지 `.min(1)`; hidden submission UPDATE 불가는 Frontend(Phase 3) UI 비활성 |
 
 ### Phase 2 구현 순서 (5일)
 
