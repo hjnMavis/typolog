@@ -29,18 +29,14 @@ export const profiles = pgTable('profiles', {
 // ─────────────────────────────────────────────
 // challenges
 // ─────────────────────────────────────────────
-export const challenges = pgTable(
-  'challenges',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    sentence: text('sentence').notNull(),
-    lines: text('lines').array().notNull(),
-    letters: text('letters').array().notNull(),
-    active_date: date('active_date').notNull().unique(),
-    created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (table) => [index('idx_challenges_active_date').on(table.active_date)],
-);
+export const challenges = pgTable('challenges', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  sentence: text('sentence').notNull(),
+  lines: text('lines').array().notNull(),
+  letters: text('letters').array().notNull(),
+  active_date: date('active_date').notNull().unique(),
+  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
 
 // ─────────────────────────────────────────────
 // submissions
