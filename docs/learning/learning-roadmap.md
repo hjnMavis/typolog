@@ -238,22 +238,28 @@ Supabase Auth는 이 과정을 대신 해준다:
 | **Refresh Token** | JWT가 만료되면 새 JWT를 받기 위한 긴 수명 토큰 | 놀이공원 팔찌 유효기간 연장 쿠폰 |
 | **Session** | 로그인 상태를 유지하는 데이터 묶음 (JWT + Refresh Token) | 호텔 체크인 후 방 카드키 |
 
-**프로젝트에서 쓰이는 위치**
+**프로젝트에서 쓰이는 위치** (실제 구현 경로 — 설계 초안과 다른 부분은 ※ 표시)
 
 | 파일/경로 | 역할 |
 |-----------|------|
-| `src/lib/supabase/client.ts` | 브라우저에서 사용하는 Supabase 클라이언트 (로그인/로그아웃) |
+| `src/lib/supabase/browser.ts` | 브라우저에서 사용하는 Supabase 클라이언트 (로그인/로그아웃) ※ 구 `client.ts` |
 | `src/lib/supabase/server.ts` | 서버에서 사용하는 Supabase 클라이언트 (쿠키에서 세션 읽기) |
-| `src/app/(auth)/login/page.tsx` | Google/Kakao 로그인 버튼 |
-| `src/app/auth/callback/route.ts` | OAuth 콜백 처리 — Google/Kakao에서 돌아온 후 세션 설정 |
-| `src/middleware.ts` | 모든 요청에서 세션 확인 → 비로그인 시 `/login`으로 리다이렉트 |
+| `src/lib/supabase/admin.ts` | service_role secret 키로 RLS 우회하는 관리용 클라이언트 ※ 초안에 없던 3번째 |
+| `src/lib/supabase/proxy.ts` | proxy 전용 세션 갱신 헬퍼 (`updateSession`) ※ 신규 분리 |
+| `src/app/login/page.tsx` | Google 로그인 버튼 |
+| `src/app/api/auth/callback/route.ts` | OAuth 콜백 처리 — Google에서 돌아온 후 `exchangeCodeForSession`으로 세션 설정 ※ 구 `app/auth/callback` |
+| `src/proxy.ts` | 모든 요청에서 세션 확인 → 비로그인 시 `/login`으로 리다이렉트 ※ Next.js 16 개명(구 `middleware.ts`) |
+
+> **경로 정정 메모**: 위 ※ 항목들은 설계 초안 시점의 가상 경로와 실제 구현 경로가 달라 Phase 2 Day 2에서 실제 경로로 바로잡았다. 핵심 차이: browser/server 2종 → admin 추가 **3종**, proxy 세션 헬퍼 분리, Next 16 middleware→proxy 개명. 상세는 `docs/learning/phase-2-day-2.md` "부록: 로드맵 경로 정정 메모".
 
 **실습 태스크**
 
-- [ ] Supabase 대시보드에서 Google OAuth Provider 설정하기
-- [ ] 로그인 버튼 클릭 → Google 로그인 → 콜백으로 돌아오는 플로우 완성
+- [x] Supabase 대시보드에서 Google OAuth Provider 설정하기 — (Phase 2 Day 2: redirectTo `/api/auth/callback` 등록 + OAuth 동의 화면 E2E 확인, QA 권장 체크리스트)
+- [x] 로그인 버튼 클릭 → Google 로그인 → 콜백으로 돌아오는 플로우 완성 — (Phase 2 Day 2: `login/page.tsx` signInWithOAuth → `api/auth/callback/route.ts` exchangeCodeForSession → `/` 복귀, QA C22/C23/C26)
 - [ ] 로그인 후 `supabase.auth.getUser()`로 유저 정보 콘솔에 찍어보기
-- [ ] 로그아웃 후 보호된 페이지 접근 시 `/login`으로 리다이렉트되는지 확인
+- [x] 로그아웃 후 보호된 페이지 접근 시 `/login`으로 리다이렉트되는지 확인 — (Phase 2 Day 2: `src/proxy.ts` 보호 라우트 4종 307 redirect 검증, QA C20/라우팅 시나리오)
+
+> **Phase 2 Day 2 학습 노트**: `docs/learning/phase-2-day-2.md` — 클라이언트 3종(browser/server/admin) 역할 차이, `getAll/setAll` 청크 쿠키, Server Component 쿠키 불가 + try/catch, Google OAuth+PKCE 플로우, `getClaims` vs `getSession`(서버 신뢰), Next 16 proxy(matcher·fail-closed), `supabaseResponse` 반환과 로그인 루프, open-redirect 방어, `server-only` 가드, M2 중복 인덱스, (보너스) Self-XSS 콘솔 경고.
 
 ---
 
@@ -362,6 +368,8 @@ CREATE POLICY "본인 데이터만 읽기" ON submissions
 - [ ] Supabase 대시보드의 "RLS Policy" 탭에서 정책 확인하는 방법 익히기
 
 > **Phase 2 Day 1 학습 노트**: `docs/learning/phase-2-day-1.md` — RLS(USING vs WITH CHECK), GRANT vs RLS 2단 관문, SECURITY DEFINER trigger, 하이브리드 마이그레이션, Drizzle 스키마 표현, `(SELECT auth.uid())` 캐싱, DATABASE_URL % 인코딩. QA H1(GRANT 누락)/H2(hidden 복원) 실전 사례 포함.
+>
+> **Phase 2 Day 2 RLS 연결**: Day 1에 만든 RLS가 Day 2에서 "실제로 작동하기 시작"한다. ① OAuth 로그인으로 발급된 JWT가 쿠키에 담기고, 그 안의 user id가 RLS의 `(SELECT auth.uid())`로 흘러온다(`docs/learning/phase-2-day-2.md §4·§5`). ② 클라이언트 3종 중 browser/server는 **RLS 적용**, admin은 **RLS 우회** — "어느 권한으로 DB를 치느냐"가 RLS 적용 여부를 가른다(§1). ③ 첫 로그인 시 Day 1의 `handle_new_user` trigger가 실전 발동해 `profiles`가 자동 생성된다(QA 권장 체크리스트). RLS 정책을 대시보드에서 눈으로 확인하는 마지막 태스크는 Day 3에서 함께 익힌다.
 
 ---
 
