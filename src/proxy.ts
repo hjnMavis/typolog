@@ -3,7 +3,8 @@ import { updateSession } from '@/lib/supabase/proxy';
 
 // 보호 라우트 (게이트 A 결정 c): `/`, `/challenge/*`, `/feed/*`, `/admin/*`
 // 그 외(`/login`, `/s/*`, `/u/*`, `/api/auth/callback`, `/api/og/*`, `/api/challenges/today`)는 공개.
-// API 401 응답은 각 핸들러 책임(Day 3+)이며, proxy는 페이지 redirect만 담당한다.
+// M3 (게이트 A Day3-(g)): API 라우트는 자체 인증(getAuthUser)으로 401을 책임지고
+// proxy는 페이지 redirect만 담당하므로 matcher에서 `/api/*`를 제외한다(중복 세션 갱신 제거).
 const PROTECTED_PREFIXES = ['/challenge', '/feed', '/admin'];
 
 function isProtectedPath(pathname: string): boolean {
@@ -28,8 +29,9 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // 정적 자산·이미지 최적화 경로는 세션 갱신이 불필요하므로 제외 (negative match)
+  // 세션 갱신이 불필요한 경로 제외 (negative match):
+  // `/api/*`(핸들러가 자체 인증, M3) + 정적 자산·이미지 최적화 경로.
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };
