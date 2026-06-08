@@ -100,11 +100,11 @@ CREATE TABLE challenges (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_challenges_active_date ON challenges(active_date);
+-- active_date 단독 인덱스 없음 — UNIQUE 제약이 생성하는 인덱스가 날짜 조회를 커버 (Day 2, QA M2 중복 제거)
 ```
 
 **설계 포인트**:
-- `active_date UNIQUE` → 날짜당 정확히 1개 문장
+- `active_date UNIQUE` → 날짜당 정확히 1개 문장 (이 제약이 만드는 인덱스가 조회도 커버 — 별도 인덱스 불필요)
 - `lines`는 **작성자가 지정한 줄 배열**(콜라주 줄 배치의 단일 소스). 예: "우리 동네 맛집" → `{'우리 동네','맛집'}` (단어 "동네"가 끊기지 않도록 작성자가 의도)
 - `sentence`(표시용) = `lines`를 공백으로 join, `letters`(슬롯용) = `lines`의 각 줄에서 공백/특수문자 제거 후 flatten (예: "오늘도 화이팅" → `{'오','늘','도','화','이','팅'}`)
 - seed SQL로 등록. Phase 2 관리자 UI는 줄별 입력(↔ `lines`). 현재 관리자 UI 없음
@@ -916,6 +916,7 @@ type ApiError = {
 4. **Content moderation**: 부적절한 이미지 업로드 탐지 없음. 신고 + 수동 처리에 의존
 5. **CSRF**: Server Action은 Next.js가 기본 CSRF 보호 제공. Route Handler는 Supabase Auth 토큰 검증으로 대체
 6. **Kakao OAuth**: Supabase에서 Kakao는 커스텀 OIDC 설정 필요. Google보다 설정 복잡
+7. **Admin role 게이트 없음**: `/admin/*`는 인증만 요구한다(role 체계 미구현 — Day 2 게이트 A 결정). 관리 mutation 자체는 서버 전용 Admin Client 경로라 직접 노출은 없으나, admin 페이지 접근 제어는 추후 `app_metadata` 기반 role 도입 시 보강
 
 ### 8.4 RLS·trigger·Storage 구현 시 반드시 지킬 것 (Supabase 공식 스킬 반영, 2026-06)
 
@@ -939,6 +940,7 @@ type ApiError = {
    - 검증(Day 2 E2E): publishable 키로 `/rest/v1/challenges` 호출 → 401/404 확인
    - 되돌림 조건: Phase 3+에서 supabase-js 직접 쿼리·Realtime이 필요해지면 재노출 검토
 2. **신규 API 키 체계 + env 네이밍 정리**: 프로젝트 키는 신규 체계(`sb_publishable_…`/`sb_secret_…`)다. env 변수명을 legacy 명칭(`ANON_KEY`/`SERVICE_ROLE_KEY`)에서 **`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` / `SUPABASE_SECRET_KEY`**로 정리한다 — `.env.local` + `.env.local.example` + 코드 참조를 Day 2에 동시 변경(따로 하면 drift). `sb_secret_` 키는 service_role과 동일하게 RLS를 우회하므로 서버 전용 — `NEXT_PUBLIC_` 금지 규칙 동일 적용. 변수명 최종 표기는 Day 2 시작 시 현행 Supabase docs 기준으로 1회 재확인.
+   → **재확인 완료 (2026-06-05, 게이트 A)**: 현행 Next.js SSR 가이드가 `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`를 사용함을 확인. **`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` / `SUPABASE_SECRET_KEY`로 확정** (secret 쪽은 docs에 Next.js 표준명이 없어 신규 키 체계 명칭과 일관되게 명명).
 
 ---
 
@@ -956,6 +958,18 @@ type ApiError = {
 | (d) env 템플릿 | `.env.local.example`에 DATABASE_URL 항목 추가(서버 전용 경고 주석 포함) + 주석 처리된 Supabase 키 항목 활성 정리 — Day 1 |
 | (e) 패키지 | **Day별 최소 설치** — Day 1: `drizzle-orm`·`postgres`(deps) + `drizzle-kit`(devDep) / Day 2: `@supabase/supabase-js`·`@supabase/ssr` / Day 3: `zod` |
 
+### Day 2 확정 결정 (게이트 A 통과, 2026-06-05)
+
+| 항목 | 결정 |
+|------|------|
+| (a) env 변수명 | **`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` / `SUPABASE_SECRET_KEY` 확정** — 현행 SSR 가이드 표기 재확인 완료(§8.5-2). `.env.local`(키명만 sed 치환, 값 비노출)·`.env.local.example`·코드 참조 동시 변경 |
+| (b) /login | Phase 1 미구현 확인 → **Backend가 최소 1파일**(`src/app/login/page.tsx`, Google 버튼만) 신규 생성. `src/app/` 소유권 침범은 이 1파일에 한정 승인. 디자인 다듬기는 Phase 3 Frontend 이관 |
+| (c) 보호 라우트 | architecture.md 표 그대로 — 보호: `/`, `/challenge/*`, `/feed/*`, `/admin/*` / 공개: `/login`, `/s/*`, `/u/*`, `/api/auth/callback`, `/api/og/*`, `/api/challenges/today`. `/admin`은 인증만(§8.3-7). API 401은 각 핸들러 책임(proxy는 페이지 redirect만) |
+| (d) M2 중복 인덱스 | Day 2 포함 — `schema.ts`에서 `idx_challenges_active_date` 제거 + drizzle 0002(DROP INDEX) + §1.2·data-model.md 동기화. 커스텀 인덱스 5→4개. QA 리뷰·학습 노트는 시점 기록이므로 미수정 |
+| (e) 작업 단위 | **3단위 = PR 3개** (커밋·PR 정책 개정 2026-06-05: 작업 단위별 PR + PR 내 세분 커밋) — U1: db runtime client+M2(직접 2파일) / U2: env 정리+Supabase 클라이언트 3종(4파일) / U3: login+callback+proxy(4파일). 의존 순서 U1→U2→U3 순차 머지, 게이트 A 문서 동기화는 U1 PR에 docs 커밋으로 포함 |
+| (f) proxy 컨벤션 | Next.js 16(`middleware.ts` deprecated → proxy 개명) 확인 → **`src/proxy.ts`** 채택. 관련 문서 표기 동기화 완료 |
+| (g) server-only | `server-only` 패키지 설치 — `src/lib/supabase/admin.ts`·`src/db/index.ts`에 import 가드(클라이언트 번들 유입 시 빌드 타임 실패) |
+
 ### Phase 2 구현 순서 (5일)
 
 ```
@@ -970,13 +984,13 @@ Day 2: 인증 + 클라이언트
 ├── 2-6. Supabase 클라이언트 3종 구현
 │   ├── src/lib/supabase/browser.ts  (Browser Client, RLS O)
 │   ├── src/lib/supabase/server.ts   (Server Client, RLS O)
-│   └── src/lib/supabase/admin.ts    (Admin Client, RLS X)
+│   └── src/lib/supabase/admin.ts    (Admin Client, RLS X — server-only 가드)
 ├── 2-7. Supabase Auth 연동 (Google OAuth)
-│   ├── /login 페이지 수정
+│   ├── /login 페이지 신규 생성 (Phase 1 미구현 — Backend 최소 1파일)
 │   ├── /api/auth/callback Route Handler
 │   └── 세션 관리 (쿠키)
-├── 2-8. Next.js Middleware (인증 체크)
-├── 2-9. profiles trigger 동작 확인
+├── 2-8. Next.js Proxy 인증 체크 (src/proxy.ts — Next 16에서 middleware 개명)
+├── 2-9. profiles trigger 동작 확인 (실제 OAuth 로그인 E2E)
 └── (보안) §8.5 결정 적용 — Data API 비노출 + env 키 네이밍 정리
 
 Day 3: 핵심 API + Storage

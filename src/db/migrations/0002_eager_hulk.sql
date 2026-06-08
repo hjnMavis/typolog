@@ -1,0 +1,1 @@
+DROP INDEX "idx_challenges_active_date";

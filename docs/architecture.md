@@ -14,7 +14,7 @@ graph TB
         SSR["Next.js Server (App Router)"]
         API["Route Handlers / Server Actions"]
         OG["OG Image Generator"]
-        MW["Middleware (인증 체크)"]
+        MW["Proxy (인증 체크, src/proxy.ts)"]
     end
 
     subgraph Supabase["Supabase"]
@@ -50,7 +50,7 @@ graph TB
 
 | 역할 | 기술 | 이유 |
 |------|------|------|
-| 프레임워크 | Next.js 15 App Router | SSR/SSG, API Routes, 이미지 최적화 |
+| 프레임워크 | Next.js 16 App Router | SSR/SSG, API Routes, 이미지 최적화 |
 | 언어 | TypeScript (strict) | 타입 안전성 |
 | 스타일 | Tailwind CSS 4 + shadcn/ui | 빠른 UI 개발, 커스터마이즈 용이 |
 | 클라이언트 상태 | Zustand | 간결한 API, persist middleware |
@@ -277,7 +277,7 @@ sequenceDiagram
 sequenceDiagram
     actor User
     participant Browser as 브라우저
-    participant MW as Next.js Middleware
+    participant MW as Next.js Proxy
     participant Auth as Supabase Auth
     participant API as Route Handler
     participant DB as PostgreSQL (RLS)
@@ -304,7 +304,7 @@ sequenceDiagram
 ### 인증 흐름 핵심 포인트
 
 1. **Supabase Auth**가 세션을 관리 (JWT 기반, 쿠키 저장)
-2. **Next.js Middleware**가 보호 페이지 접근 시 세션 유무를 확인
+2. **Next.js Proxy**(`src/proxy.ts` — Next 16에서 middleware가 proxy로 개명)가 보호 페이지 접근 시 세션 유무를 확인
 3. **RLS (Row Level Security)** 가 DB 레벨에서 데이터 접근을 제어
 4. 비인증 접근 가능: `/login`, `/s/[id]`, `/api/og/[id]`, `/api/challenges/today`
 
