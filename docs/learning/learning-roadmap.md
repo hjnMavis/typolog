@@ -203,9 +203,11 @@ export async function toggleLike(submissionId: string) {
 
 **실습 태스크**
 
-- [ ] Route Handler로 `GET /api/hello`를 만들어서 브라우저에서 JSON 응답 확인
+- [x] Route Handler로 `GET /api/hello`를 만들어서 브라우저에서 JSON 응답 확인 — (Phase 2 Day 3: `GET /api/challenges/today` 공개 GET Route Handler, `runtime='nodejs'`+`force-dynamic`)
 - [ ] Server Action으로 버튼 클릭 시 `console.log`를 서버에서 찍어보기
-- [ ] Route Handler에서 `request.json()`으로 body를 받아 echo하는 POST API 만들기
+- [x] Route Handler에서 `request.json()`으로 body를 받아 echo하는 POST API 만들기 — (Phase 2 Day 3: `POST /api/submissions`에서 `request.json()`+zod safeParse, `POST /api/submissions/[id]/letters`에서 `request.formData()` 파일 업로드)
+
+> **Phase 2 Day 3 학습 노트**: `docs/learning/phase-2-day-3.md` — zod 검증(isomorphic·safeParse vs parse·user_id를 body에서 안 받기), 표준 에러 `{error,code}`+403 vs 404 존재 은폐+검사 순서(401→404→409), Storage 버킷·`storage.objects` 정책(경로 첫 폴더=user_id, UPSERT엔 INSERT+UPDATE 둘 다, collages 조건부 공개), **Drizzle 직결의 RLS 우회 함정**, 소유권 코드 검증(getAuthUser=getClaims, getOwnedSubmission), UPSERT 2종(DoNothing vs DoUpdate), 파일 검증 MVP 범위(MIME+크기, magic-byte 미룸), Storage+DB 비원자성·고아 파일, M2(복귀 화이트리스트)/M3(proxy `/api` 제외)/seed 분리.
 
 ---
 
@@ -305,10 +307,10 @@ Storage
 
 **실습 태스크**
 
-- [ ] Supabase 대시보드에서 `letter-pieces` 버킷 만들기 (private)
-- [ ] 코드에서 이미지 파일을 `letter-pieces` 버킷에 업로드하기
-- [ ] 업로드한 파일의 URL을 가져와서 `<img>`에 표시해보기
-- [ ] 다른 유저로 접근 시 403 에러가 나는지 확인
+- [x] Supabase 대시보드에서 `letter-pieces` 버킷 만들기 (private) — (Phase 2 Day 3: 대시보드 대신 커스텀 SQL 마이그레이션 `0003_storage_buckets_and_policies.sql`로 letter-pieces/collages/avatars 3종 + `file_size_limit`/`allowed_mime_types` 코드화)
+- [x] 코드에서 이미지 파일을 `letter-pieces` 버킷에 업로드하기 — (Phase 2 Day 3: `letters/route.ts`에서 `supabase.storage.from('letter-pieces').upload(path, bytes, {upsert:true})`, path=`{user_id}/{submission_id}/{slot}.webp`)
+- [ ] 업로드한 파일의 URL을 가져와서 `<img>`에 표시해보기 — (Day 4 예정: private 버킷이라 signed URL 필요, Day 3는 `image_url`에 경로만 저장)
+- [x] 다른 유저로 접근 시 403 에러가 나는지 확인 — (Phase 2 Day 3: Storage 정책 `(storage.foldername(name))[1] = auth.uid()`로 타인 경로 차단 + 서버 path 구성으로 이중 방어, `0003_...sql:24-27`)
 
 ---
 
@@ -1273,12 +1275,12 @@ Phase 5+ (프로덕션 운영)
 - [ ] selector로 리렌더링을 최적화할 수 있다
 
 ### Phase 2 체크리스트
-- [ ] Route Handler와 Server Action의 차이를 설명할 수 있다
-- [ ] 어떤 상황에서 어느 것을 쓸지 판단할 수 있다
+- [x] Route Handler와 Server Action의 차이를 설명할 수 있다 — (Phase 2 Day 3: GET/POST Route Handler 3종 구현, FormData 파일 업로드는 Route Handler 채택, `docs/learning/phase-2-day-3.md §1·§6`)
+- [x] 어떤 상황에서 어느 것을 쓸지 판단할 수 있다 — (Phase 2 Day 3: 파일 업로드=Route Handler+FormData, `request.json()` vs `request.formData()` 구분)
 - [ ] OAuth 로그인 플로우 전체를 설명할 수 있다
 - [ ] JWT가 뭔지, 어디에 저장되는지 설명할 수 있다
-- [ ] Supabase Storage에 파일을 업로드/다운로드할 수 있다
-- [ ] Public vs Private 버킷의 차이를 설명할 수 있다
+- [x] Supabase Storage에 파일을 업로드/다운로드할 수 있다 — (Phase 2 Day 3: `letter-pieces` 버킷 업로드 구현. 다운로드(signed URL)는 Day 4)
+- [x] Public vs Private 버킷의 차이를 설명할 수 있다 — (Phase 2 Day 3: avatars(public, 읽기 정책 없음) vs letter-pieces/collages(private, 경로 소유권 정책), `docs/learning/phase-2-day-3.md §3`)
 - [x] RLS 정책을 읽고 "누가 무엇을 할 수 있는지" 해석할 수 있다 — (Phase 2 Day 1: 15정책 + 요약표 해석, `docs/learning/phase-2-day-1.md §4`)
 - [ ] Signed URL을 만들고 사용할 수 있다
 
@@ -1290,6 +1292,19 @@ Phase 5+ (프로덕션 운영)
 - [x] Drizzle 스키마로 check/unique/부분 인덱스/authUsers FK를 표현할 수 있다
 - [x] `(SELECT auth.uid())` 래핑이 행마다 재평가를 막는 캐시임을 설명할 수 있다
 - [x] DATABASE_URL의 비밀번호 % 인코딩 함정을 설명할 수 있다 (Session pooler 5432)
+
+#### Phase 2 Day 3에서 추가로 익힌 것 (핵심 API + Storage)
+- [x] 인증(누구인가)과 검증(보낸 게 올바른가)이 별개임을 설명할 수 있다 — zod safeParse(API 400) vs parse(seed 중단), isomorphic 모듈
+- [x] 소유 식별자(user_id)를 body가 아니라 JWT(`claims.sub`)에서 꺼내는 이유를 설명할 수 있다 (명의 도용 방지)
+- [x] 표준 에러 `{error, code}` + `details`를 개발 모드에서만 노출하는 이유를 설명할 수 있다
+- [x] 타인 리소스에 403이 아니라 404로 존재를 은폐하는 이유(enumeration 차단)와 검사 순서(401→404→409)를 설명할 수 있다
+- [x] Storage가 `storage.objects`라는 별도 정책 표면이고, 경로 첫 폴더(`(storage.foldername(name))[1]`)=user_id로 소유권을 표현함을 설명할 수 있다
+- [x] UPSERT에 INSERT+UPDATE 정책이 둘 다 필요한 이유, collages가 `submissions`를 EXISTS 조인해 조건부 공개하는 구조를 설명할 수 있다
+- [x] **Drizzle 직결이 RLS를 우회**하므로 소유권을 코드(getOwnedSubmission)로 검증해야 함을 설명할 수 있다 (Day 3 1급 함정)
+- [x] `onConflictDoNothing`(중복 방지) vs `onConflictDoUpdate`(값 교체)의 의도 차이를 설명할 수 있다
+- [x] 파일 검증 MVP 범위(MIME 자기신고값 + 크기 413)와 미룬 리스크(magic-byte, 서버 EXIF strip)를 구분할 수 있다
+- [x] Storage+DB가 한 트랜잭션이 아니라 고아 파일이 생길 수 있음과 대응(파일 먼저·행 나중 + path 로깅 + 이중 방어)을 설명할 수 있다
+- [x] M2(복귀 경로 화이트리스트), M3(proxy `/api` 제외), seed를 마이그레이션 lineage 밖에 두는 이유를 설명할 수 있다
 
 ### Phase 3 체크리스트
 - [ ] `useQuery`와 `useMutation`의 차이를 설명할 수 있다
