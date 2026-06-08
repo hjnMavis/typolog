@@ -5,13 +5,13 @@
 - **서비스명**: Typolog (Typography + Log)
 - **한 줄 요약**: 같은 문장을, 각자의 일상에서 전혀 다르게 완성하는 글자 콜라주 앱
 - **플랫폼**: 모바일 웹 (모바일 우선)
-- **현재 상태**: Phase 0 완료, Phase 1 (Mock 기반 핵심 UX) 진행 예정
+- **현재 상태**: Phase 1 완료, Phase 2 (Supabase 백엔드 연동) 진행 중
 
 ## 기술 스택
 
 | 역할 | 기술 |
 |------|------|
-| Framework | Next.js 15 App Router (Turbopack) |
+| Framework | Next.js 16 App Router (Turbopack) |
 | Language | TypeScript (strict) |
 | Styling | Tailwind CSS v4 + shadcn/ui |
 | Client State | Zustand (persist middleware) |
@@ -80,15 +80,15 @@ src/
 - **게이트 B (QA)**: QA 에이전트용 QA 프롬프트 + 사용자 직접 E2E 체크리스트를 **동시 제공**.
   QA 리포트(`docs/reviews/phase{N}-day{M}-qa-review.md`) 수령 + E2E 전 항목 완료 + Critical/High 0건이어야 통과.
 - **게이트 C (학습)**: 멘토 에이전트용 학습 프롬프트 제공 → 학습 노트(`docs/learning/phase-{N}-day-{M}.md`) 수령.
-- **커밋 & PR**: 세 게이트 모두 통과 시에만 커밋·PR. 커밋은 **작업 단위별로 분리**(기준: `docs/agent-view-workflow.md`), PR은 **Day 단위 1개**. **AI 서명 없음.**
+- **커밋 & PR**: 세 게이트 모두 통과 시에만 커밋·PR. **작업 단위별 PR**(기준: `docs/agent-view-workflow.md`)로 범위를 작게 나눠 의존 순서대로 순차 머지하고, 각 PR 내부는 **논리적 단계별 세분 커밋**으로 구성. **AI 서명 없음.**
 
 게이트는 차단 지점이다. 통과 전에는 다음 단계로 진행하지 않는다.
 
 ## 현재 Phase
 
-**Phase 1: Mock 기반 핵심 UX** (Week 1)
-- 서버 없이 localStorage + mock 데이터로 핵심 플로우 완성
-- 카메라 → crop → 슬롯 저장 → 콜라주 → PNG 다운로드
+**Phase 2: Supabase 백엔드 연동**
+- DB 스키마·RLS·GRANT·trigger (Day 1 완료) → 인증·클라이언트 3종 (Day 2) → API·Storage → 동기화 → 검증
+- 구현 순서·Day별 확정 결정: `docs/backend-design-plan.md` §9
 
 ## 주요 명령어
 

@@ -219,8 +219,7 @@ profiles 1:N reports          (한 사용자가 여러 신고)
 ## 인덱스 전략
 
 ```sql
--- 오늘의 챌린지 빠른 조회
-CREATE INDEX idx_challenges_active_date ON challenges(active_date);
+-- 오늘의 챌린지 조회: active_date UNIQUE 제약이 생성하는 인덱스가 커버 (별도 인덱스 없음 — Day 2 QA M2 중복 제거)
 
 -- 피드 쿼리: 특정 챌린지의 공개 완성 제출 (cursor pagination용 id 포함)
 CREATE INDEX idx_submissions_feed

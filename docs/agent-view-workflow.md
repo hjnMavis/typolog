@@ -55,7 +55,7 @@ Frontend Agent:
 
 Backend Agent:
   src/app/api/ (OG 이미지 포함), src/db/, src/lib/supabase/, src/types/
-  supabase/, middleware.ts
+  supabase/, src/proxy.ts (Next 16 — 구 middleware.ts)
   .github/workflows/, next.config.ts, drizzle.config.ts
 
 QA Agent:
@@ -139,7 +139,7 @@ graph TD
 
 ## 작업 단위 쪼개는 기준
 
-**원칙**: "하나의 작업 = 하나의 의미있는 커밋"
+**원칙**: "하나의 작업 단위 = 하나의 PR" — PR 범위는 작게, PR 내부는 논리적 단계별 세분 커밋으로 (정책 개정 2026-06-05, 구: 작업 단위별 커밋 + Day 단위 PR 1개)
 
 | 기준 | 예시 |
 |------|------|
@@ -148,9 +148,9 @@ graph TD
 | 레이어 단위 | "API 구현", "UI 구현", "테스트 작성" |
 | 파일 5개 이내 (직접 작성 기준) | 초과 시 작업 쪼개기. 자동 생성물·lockfile·문서 1~2줄 동기화는 비산입 |
 
-**쪼개면 안 되는 경우**:
+**쪼개면 안 되는 경우** (PR=머지 단위 기준 — 같은 PR 안에서의 커밋 분리는 무방):
 - DB 스키마 변경 + RLS 정책 → 함께 배포해야 보안 유지
-- 컴포넌트 + 해당 스타일 → 분리하면 깨진 UI가 커밋됨
+- 컴포넌트 + 해당 스타일 → 분리하면 깨진 UI가 머지됨
 
 ---
 

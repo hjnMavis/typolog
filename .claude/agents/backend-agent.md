@@ -66,7 +66,7 @@ src/app/api/             — Route Handlers (OG 이미지 생성 포함)
 src/lib/supabase/        — Supabase 클라이언트 (browser, server, admin)
 src/types/               — 공유 타입
 supabase/                — config, seed, 마이그레이션 SQL
-middleware.ts            — Next.js Middleware (인증 체크)
+src/proxy.ts             — Next.js Proxy (인증 체크, Next 16 — 구 middleware.ts)
 .github/workflows/       — GitHub Actions CI/CD
 next.config.ts           — Next.js 설정
 drizzle.config.ts        — Drizzle 설정
