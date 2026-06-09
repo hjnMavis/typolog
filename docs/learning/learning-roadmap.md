@@ -309,7 +309,7 @@ Storage
 
 - [x] Supabase 대시보드에서 `letter-pieces` 버킷 만들기 (private) — (Phase 2 Day 3: 대시보드 대신 커스텀 SQL 마이그레이션 `0003_storage_buckets_and_policies.sql`로 letter-pieces/collages/avatars 3종 + `file_size_limit`/`allowed_mime_types` 코드화)
 - [x] 코드에서 이미지 파일을 `letter-pieces` 버킷에 업로드하기 — (Phase 2 Day 3: `letters/route.ts`에서 `supabase.storage.from('letter-pieces').upload(path, bytes, {upsert:true})`, path=`{user_id}/{submission_id}/{slot}.webp`)
-- [ ] 업로드한 파일의 URL을 가져와서 `<img>`에 표시해보기 — (Day 4 예정: private 버킷이라 signed URL 필요, Day 3는 `image_url`에 경로만 저장)
+- [x] 업로드한 파일의 URL을 가져와서 `<img>`에 표시해보기 — (Phase 2 Day 4: GET A3가 letter_pieces·collage 경로를 읽기 시점에 `createSignedUrl`로 서명해 내려주고, E2E에서 그 signed URL을 브라우저로 열어 이미지 로드 확인 — #31 v·w)
 - [x] 다른 유저로 접근 시 403 에러가 나는지 확인 — (Phase 2 Day 3: Storage 정책 `(storage.foldername(name))[1] = auth.uid()`로 타인 경로 차단 + 서버 path 구성으로 이중 방어, `0003_...sql:24-27`)
 
 ---
@@ -417,9 +417,11 @@ const { data } = await supabase.storage
 **실습 태스크**
 
 - [ ] Private 버킷의 파일에 일반 URL로 접근 시 403 에러 확인
-- [ ] `createSignedUrl()`로 임시 URL 생성 후 접근 성공 확인
+- [x] `createSignedUrl()`로 임시 URL 생성 후 접근 성공 확인 — (Phase 2 Day 4: `src/lib/storage/signed-url.ts` `createSignedUrl(supabase, bucket, path, ttl)` 헬퍼 + `SIGNED_URL_TTL.EDIT(1h)`/`SHARE(24h)` 프리셋. A3 `GET /api/submissions/[id]`에서 콜라주·본인 글자 조각 경로를 읽기 시점에 서명해 내려줌)
 - [ ] 만료 시간을 10초로 설정하고, 10초 후 접근 실패 확인
-- [ ] Public 버킷 vs Private 버킷의 URL 차이를 비교해보기
+- [x] Public 버킷 vs Private 버킷의 URL 차이를 비교해보기 — (Phase 2 Day 4: private 버킷이라 DB엔 경로만 저장하고 읽기 시점에 서명. 요청자 JWT가 실린 server client로 서명해 storage.objects RLS(§5)가 적용 → 무권한 경로는 null로 URL이 새지 않음. admin client 서명 금지)
+
+> **Phase 2 Day 4 학습 노트**: `docs/learning/phase-2-day-4.md` — 제출 완성 API 3종(A3 GET 상세+signed URL / A4 PATCH status·visibility / A6 collage 업로드). ① Signed URL: DB엔 경로만·읽기 시점 서명·요청자 JWT로 서명해 RLS 적용(무권한 경로 null)·TTL 프리셋(본인 1h/공유 24h)·admin 서명 금지. ② 상태 전이=조건부 UPDATE(UPSERT 아님): zod `z.literal('completed')`로 역전 차단, 완성 전제검증(slot count==letters.length AND collage!=null), WHERE 소유권+non-hidden 가드(TOCTOU), count==length 정당성(범위검증+UNIQUE 불변식), 전제검증·UPDATE 비원자성 한계(Reviewer Medium). ③ 간접 소유권 재사용(getOwnedSubmission 3라우트 공유)+Storage 정책 2층 방어, 404 존재은폐·검사순서(401→404→409), server-only 가드, serialize.ts 단일 투영. 다음 Day 4.5(Zustand↔서버 동기화+TanStack Query) 다리 포함.
 
 ---
 
