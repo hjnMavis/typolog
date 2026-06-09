@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { challenges } from '@/db/schema';
 import { jsonError } from '@/lib/api/errors';
+import { getKSTDateString } from '@/lib/utils/date';
 
 // 비인증 공개 라우트 (proxy 공개 목록, §9 Day2-(c)).
 // '오늘'은 날짜마다 바뀌므로 정적 캐싱하지 않고 요청 시 DB를 조회한다.
@@ -10,11 +11,6 @@ import { jsonError } from '@/lib/api/errors';
 export const dynamic = 'force-dynamic';
 // Drizzle(postgres) 직결을 쓰므로 Node 전용 런타임을 명시한다.
 export const runtime = 'nodejs';
-
-// KST(Asia/Seoul) 기준 YYYY-MM-DD — Phase 1 mock(getKSTDateString)과 동일 규칙.
-function getKSTDateString(): string {
-  return new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
-}
 
 export async function GET() {
   const today = getKSTDateString();

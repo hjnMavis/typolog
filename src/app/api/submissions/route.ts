@@ -3,16 +3,12 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { challenges, submissions } from '@/db/schema';
 import { getAuthUser } from '@/lib/api/auth';
-import { jsonError, validationError } from '@/lib/api/errors';
+import { jsonError, submissionConflict, validationError } from '@/lib/api/errors';
 import { createSubmissionSchema } from '@/lib/validations/submission';
+import { getKSTDateString } from '@/lib/utils/date';
 
 // Drizzle(postgres) 직결을 쓰므로 Node 전용 런타임을 명시한다.
 export const runtime = 'nodejs';
-
-// KST(Asia/Seoul) 기준 YYYY-MM-DD — Phase 1 mock과 동일 규칙.
-function getKSTDateString(): string {
-  return new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
-}
 
 // POST /api/submissions — 새 draft 생성 (§6.3 A2)
 export async function POST(request: Request) {
@@ -54,16 +50,13 @@ export async function POST(request: Request) {
     .returning();
 
   if (!created) {
-    // 이미 존재 → 409. 기존 제출을 함께 돌려줘 클라이언트가 이어서 진행하도록 한다.
+    // 이미 존재 → 409. 기존 제출을 함께 돌려줘 클라이언트가 이어서 진행하도록 한다 (전용 타입, §7.4·QA M2).
     const [existing] = await db
       .select()
       .from(submissions)
       .where(and(eq(submissions.user_id, user.id), eq(submissions.challenge_id, challenge_id)))
       .limit(1);
-    return NextResponse.json(
-      { error: '이미 제출이 존재합니다.', code: 'SUBMISSION_EXISTS', submission: existing ?? null },
-      { status: 409 },
-    );
+    return submissionConflict(existing ?? null);
   }
 
   return NextResponse.json(created, { status: 201 });

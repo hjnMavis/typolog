@@ -5,7 +5,8 @@
 //
 // 불변식: sentence = lines.join(' '), letters = lines.flatMap(parseSentence).
 // 06-04까지는 Phase 1 mock(src/lib/constants/challenges.ts)과 1:1 정합,
-// 06-05 이후(오늘 2026-06-08 포함 ±며칠)는 작성자가 lines를 직접 지정해 추가한다.
+// 06-05 이후(오늘 2026-06-09 포함 ~06-30까지)는 작성자가 lines를 직접 지정해 추가한다.
+// Day 4: /today 404 방지를 위해 월말까지 넉넉히 연장 (게이트 A Day4-(f)).
 import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
@@ -32,7 +33,7 @@ const MOCK_ROWS: NewChallenge[] = MOCK_CHALLENGES.map((c) => ({
   active_date: c.activeDate,
 }));
 
-// 2026-06-05 이후 (오늘 2026-06-08 포함 ±며칠) — `/today`가 동작하도록 충분한 마진을 둔다.
+// 2026-06-05 이후 (오늘 2026-06-09 포함 ~06-30) — `/today`가 한 달간 동작하도록 마진을 둔다.
 const EXTRA_ROWS: NewChallenge[] = [
   fromLines(['좋은 하루'], '2026-06-05'),
   fromLines(['천천히', '걸어요'], '2026-06-06'),
@@ -41,6 +42,25 @@ const EXTRA_ROWS: NewChallenge[] = [
   fromLines(['고마운 하루'], '2026-06-09'),
   fromLines(['잠깐 쉬어', '가요'], '2026-06-10'),
   fromLines(['수고했어요'], '2026-06-11'),
+  fromLines(['좋은 생각'], '2026-06-12'),
+  fromLines(['느리게', '걸어도'], '2026-06-13'),
+  fromLines(['오늘 한 컷'], '2026-06-14'),
+  fromLines(['반가워요'], '2026-06-15'),
+  fromLines(['작은 행복'], '2026-06-16'),
+  fromLines(['깊게 숨쉬어'], '2026-06-17'),
+  fromLines(['맑은 하늘'], '2026-06-18'),
+  fromLines(['오늘 기록'], '2026-06-19'),
+  fromLines(['함께 걸어'], '2026-06-20'),
+  fromLines(['조용한 아침'], '2026-06-21'),
+  fromLines(['빛나는 순간'], '2026-06-22'),
+  fromLines(['고요한 밤'], '2026-06-23'),
+  fromLines(['새로운 길'], '2026-06-24'),
+  fromLines(['따뜻한 말'], '2026-06-25'),
+  fromLines(['쉬어 가도', '괜찮아'], '2026-06-26'),
+  fromLines(['오늘 한 걸음'], '2026-06-27'),
+  fromLines(['웃는 하루'], '2026-06-28'),
+  fromLines(['마음 한 켠'], '2026-06-29'),
+  fromLines(['잘 지냈어'], '2026-06-30'),
 ];
 
 async function main() {
