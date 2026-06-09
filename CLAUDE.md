@@ -87,7 +87,7 @@ src/
 ## 현재 Phase
 
 **Phase 2: Supabase 백엔드 연동**
-- DB 스키마·RLS·GRANT·trigger (Day 1 완료) → 인증·클라이언트 3종 (Day 2) → API·Storage → 동기화 → 검증
+- DB·RLS·trigger (Day 1) → 인증·클라이언트 3종 (Day 2) → 핵심 API·Storage (Day 3 완료) → 제출완성 API (Day 4) → 클라이언트 동기화·TanStack (Day 4.5) → 검증·마무리 (Day 5)
 - 구현 순서·Day별 확정 결정: `docs/backend-design-plan.md` §9
 
 ## 주요 명령어
