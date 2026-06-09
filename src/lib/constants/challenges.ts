@@ -1,5 +1,9 @@
 import type { Challenge } from "@/types"
 import { parseSentence } from "@/lib/utils/sentence-parser"
+import { getKSTDateString } from "@/lib/utils/date"
+
+// getKSTDateString는 @/lib/utils/date로 이전(단일 소스, Day 3 QA M1). 기존 import 경로 호환을 위해 re-export.
+export { getKSTDateString }
 
 /**
  * 작성자가 지정한 줄 배치(`lines`)를 단일 소스로 받아 Challenge를 만든다.
@@ -28,10 +32,6 @@ export const MOCK_CHALLENGES: Challenge[] = [
   challenge("9", ["오늘 참", "수고했어"], "2026-06-03"),
   challenge("10", ["이 순간을", "기억해"], "2026-06-04"),
 ]
-
-export function getKSTDateString(): string {
-  return new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" })
-}
 
 export function getTodayChallenge(): Challenge {
   const today = getKSTDateString()
