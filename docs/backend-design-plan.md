@@ -982,7 +982,19 @@ type ApiError = {
 | (f) 업로드 검증 범위 | **MVP는 MIME 타입 + 파일 크기까지만**(§7.5). magic-byte 검사·서버측 EXIF strip은 **리스크로 기록 후 이관**(클라이언트 EXIF strip은 Phase 1에 존재). 디코딩 유효성도 MVP 제외 |
 | (g) Day 2 이관분 처리 | **M2(보안) 처리 + M3(최적화) 함께 처리 권장.** M2: callback `next`를 알려진 내부 경로 prefix 집합으로 협소화. M3: proxy matcher에서 `/api/*`(또는 `/api/auth`) 제외 여부를 API 작업과 함께 결정. Day 1 이관: zod에서 `challenges.lines/letters` 빈 배열 금지 `.min(1)`; hidden submission UPDATE 불가는 Frontend(Phase 3) UI 비활성 |
 
-### Phase 2 구현 순서 (5일)
+### Day 4 확정 결정 (게이트 A 통과, 2026-06-09)
+
+| 항목 | 결정 |
+|------|------|
+| (a) Day 범위 분할 | **Day 4 = 백엔드 API 전용.** 2-18(Zustand↔서버 동기화)·2-19(TanStack Query)는 **신설 Day 4.5(클라이언트 연결)**로 이동, Day 5(검증·마무리)는 원안 유지. *4.5 삽입 이유*: Day 5에 동기화+TanStack을 얹으면 검증 날 과부하 + "동기화=Day5/검증=Day6"으로 밀면 Phase 3(Day 6~10)와 번호 충돌 → 4.5는 전역 Day 번호를 안 건드리고 삽입 |
+| (b) Day 4 API 3종 | A6 `POST /api/submissions/[id]/collage`(콜라주 업로드), A4 `PATCH /api/submissions/[id]`(status/visibility), A3 `GET /api/submissions/[id]`(상세+signed URL). Day 3의 소유권 코드 검증(`getOwnedSubmission`)·404 존재은폐·검사순서(401→404→409)·MIME+크기 검증 패턴 재사용 |
+| (c) Signed URL(읽기 경로) | private 버킷 파일은 상세 응답 시 서버가 `createSignedUrl(path, TTL)`로 변환해 내려준다(Day 3는 `image_url`에 경로만 저장). TTL: 본인 편집/미리보기 **1h**, 공유 **24h**(§5·로드맵 #7). collages 공개 읽기는 §5.2 anon 정책 경로도 활용 |
+| (d) 콜라주 업로드(A6) | **PNG + ≤2MB**(MIME+크기까지, Day3-(f)와 동일 MVP 범위). `collages/{user_id}/{submission_id}/collage.png` upsert → `submissions.collage_image_url` 갱신. Day 3 letters 업로드 패턴 재사용 |
+| (e) completed 전이(A4) | draft→completed는 **모든 슬롯 충족(`letter_pieces 수 == challenge.letters.length`) + 콜라주 업로드 완료**를 전제로만 허용, `completed_at` 세팅, `is_public` 토글 가능. hidden은 코드+RLS 차단, completed→draft 역전 금지. status 전이는 UPSERT가 아니라 **조건부 UPDATE** |
+| (f) Day 3 이월 정리(U1 포함) | ① `getKSTDateString` 중복 → 공유 유틸(`@/lib/utils/date` 류)로 합침, ② `src/lib/api/errors.ts`(+`supabase/server.ts` 검토)에 `import 'server-only'` 가드, ③ 중복제출 409 응답 타입 정합(`ApiErrorBody` 확장 또는 409 전용 타입). **seed 날짜 범위 넉넉히 연장 + 재실행**(/today 404 방지) |
+| (g) 작업 단위 | **2단위 = PR 2개**(예상) — U1 `phase2-day4-detail`: 이월정리(공유유틸·server-only·409타입) + seed 연장 + signed URL 헬퍼 + `GET /submissions/[id]`(A3) / U2 `phase2-day4-completion`: `POST /.../collage`(A6) + `PATCH`(A4 status/visibility). 의존 U1→U2 순차 머지, base=main, 게이트 A 문서 동기화는 별도 docs PR로 main 선반영. 두 unit 브랜치는 워크트리 `phase2-day4-completion-apis` 하나에 main 기준 스택으로 생성(Day 3 `phase2-day3-api-storage`가 unit 3종을 담은 것과 동일 구조). `route.ts`만 U1(GET)·U2(PATCH) 공유하나 스택이라 U2 diff엔 PATCH 추가분만 깔끔히 잡힘 |
+
+### Phase 2 구현 순서 (Day 1~5 + Day 4.5)
 
 ```
 Day 1: 기반 설정
@@ -1012,12 +1024,16 @@ Day 3: 핵심 API + Storage
 ├── 2-13. POST /api/submissions/[id]/letters (글자 업로드)
 └── 2-14. zod validation 스키마 작성
 
-Day 4: 제출 완성 + 동기화
+Day 4: 제출 완성 (백엔드 API)
 ├── 2-15. POST /api/submissions/[id]/collage (콜라주 업로드)
-├── 2-16. PATCH /api/submissions/[id] (status: completed)
-├── 2-17. GET /api/submissions/[id] (상세 조회)
+├── 2-16. PATCH /api/submissions/[id] (status: completed / is_public)
+├── 2-17. GET /api/submissions/[id] (상세 조회 + signed URL)
+└── (이월 정리) getKSTDateString 공유화 · errors.ts server-only · 409 타입 정합 · seed 연장
+
+Day 4.5: 클라이언트 연결 (프론트 브리지)
 ├── 2-18. Zustand → Server 동기화 흐름 구현
-└── 2-19. TanStack Query 연동 (useQuery/useMutation)
+├── 2-19. TanStack Query 연동 (useQuery/useMutation)
+└── 홈/챌린지/미리보기 화면 mock → 실제 API 전환 (프론트 오너십은 4.5 게이트 A에서 결정)
 
 Day 5: 검증 + 마무리
 ├── 2-20. RLS 동작 검증 (타인 접근 시나리오)
@@ -1087,7 +1103,10 @@ graph TD
         D13 --> D15[콜라주 업로드]
         D12 --> D16[status 업데이트]
         D16 --> D17[상세 조회]
-        D17 --> D18[동기화]
+    end
+
+    subgraph "Day 4.5"
+        D17 --> D18[동기화 + TanStack]
     end
 
     subgraph "Day 5"

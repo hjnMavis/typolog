@@ -23,7 +23,7 @@
 | 12 | [Image Crop](#12-image-crop) | 1 | ★★★ |
 | 13 | [EXIF Metadata](#13-exif-metadata) | 1 | ★★☆ |
 | 14 | [Zustand](#14-zustand) | 1 | ★★☆ |
-| 15 | [TanStack Query](#15-tanstack-query) | 3 | ★★★ |
+| 15 | [TanStack Query](#15-tanstack-query) | 2~3 | ★★★ |
 | 16 | [Optimistic Update](#16-optimistic-update) | 3 | ★★★ |
 | 17 | [PostHog Event Tracking](#17-posthog-event-tracking) | 4 | ★★☆ |
 | 18 | [Sentry](#18-sentry) | 4 | ★☆☆ |
@@ -826,7 +826,7 @@ const slot0 = useChallengeStore((state) => state.slots[0]);
 
 ### 15. TanStack Query
 
-**언제 공부하나**: Phase 3 — 피드 기능을 만들기 전에
+**언제 공부하나**: Phase 2 Day 4.5에서 **도입**(클라이언트↔서버 동기화) → Phase 3 피드에서 본격 활용
 
 **쉬운 설명**
 
