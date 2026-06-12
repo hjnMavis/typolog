@@ -6,6 +6,7 @@ import { useChallengeStore } from "@/stores/challenge-store"
 import { LetterSlot } from "./LetterSlot"
 import { ImagePickerSheet } from "./ImagePickerSheet"
 import { ImageCropperModal } from "./ImageCropperModal"
+import { TodayChallengeGate } from "./TodayChallengeGate"
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import {
@@ -18,10 +19,26 @@ import { debugLog } from "@/lib/debug/log"
 import type { Challenge } from "@/types"
 
 interface CaptureClientProps {
+  challengeId: string
+}
+
+/**
+ * 수집 화면 — TodayChallengeGate가 챌린지 서버 상태의 로딩/에러/URL 불일치를 처리하고,
+ * 준비되면 CaptureView(기존 Phase 1 수집 UI)에 challenge를 내려준다 (Day 4.5 mock→real).
+ */
+export function CaptureClient({ challengeId }: CaptureClientProps) {
+  return (
+    <TodayChallengeGate challengeId={challengeId}>
+      {(challenge) => <CaptureView challenge={challenge} />}
+    </TodayChallengeGate>
+  )
+}
+
+interface CaptureViewProps {
   challenge: Challenge
 }
 
-export function CaptureClient({ challenge }: CaptureClientProps) {
+function CaptureView({ challenge }: CaptureViewProps) {
   const {
     slots,
     activeSlotIndex,
