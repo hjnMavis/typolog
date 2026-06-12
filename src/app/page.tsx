@@ -1,42 +1,7 @@
-import Link from "next/link"
-import { getTodayChallenge } from "@/lib/constants/challenges"
-import { buttonVariants } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
+import { HomeClient } from "@/features/home/HomeClient"
 
+// 오늘의 챌린지 fetch는 클라이언트(TanStack Query)로 통일한다 — 보호 라우트라 SEO 무관,
+// SSR prefetch(HydrationBoundary)는 공개 화면이 생기는 Phase 3에서 도입 (게이트 A-(d)).
 export default function HomePage() {
-  const challenge = getTodayChallenge()
-
-  return (
-    <div className="flex min-h-dvh flex-col items-center justify-center p-6">
-      <div className="w-full max-w-sm space-y-8 text-center">
-        <div className="space-y-2">
-          <p className="text-sm text-muted-foreground">오늘의 문장</p>
-          <h1 className="text-3xl font-bold tracking-tight">
-            {challenge.sentence}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {challenge.letters.length}글자
-          </p>
-        </div>
-
-        <div className="flex flex-wrap justify-center gap-2">
-          {challenge.letters.map((letter, i) => (
-            <div
-              key={i}
-              className="flex h-12 w-12 items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/30 text-lg font-medium text-muted-foreground"
-            >
-              {letter}
-            </div>
-          ))}
-        </div>
-
-        <Link
-          href={`/challenge/${challenge.id}`}
-          className={cn(buttonVariants({ size: "lg" }), "w-full")}
-        >
-          시작하기
-        </Link>
-      </div>
-    </div>
-  )
+  return <HomeClient />
 }
