@@ -546,7 +546,7 @@ Supabase Storage
 
 | 버킷 | 경로 패턴 | 포맷 | 크기 제한 |
 |------|----------|------|----------|
-| letter-pieces | `{user_id}/{submission_id}/{slot_index}.webp` | WebP | 500KB |
+| letter-pieces | `{user_id}/{submission_id}/{slot_index}.{webp\|jpg}` | WebP(기본)·JPEG(Safari 폴백, Day 4.5 옵션 A) | 500KB |
 | collages | `{user_id}/{submission_id}/collage.png` | PNG | 2MB |
 | avatars | `{user_id}/avatar.webp` | WebP | 500KB |
 
@@ -762,8 +762,8 @@ Body: FormData { image (File), slot_index (number), character (string) }
 로직:
   1. submission이 본인 것인지 + draft 상태인지 확인
   2. slot_index가 유효한 범위인지 확인 (0 ~ letters.length - 1)
-  3. 이미지 검증: WebP, 500KB 이하
-  4. Storage에 업로드: letter-pieces/{user_id}/{submission_id}/{slot_index}.webp
+  3. 이미지 검증: WebP 또는 JPEG(Safari 폴백, Day 4.5 옵션 A), 500KB 이하
+  4. Storage에 업로드: letter-pieces/{user_id}/{submission_id}/{slot_index}.{webp|jpg}
   5. letter_pieces 테이블에 UPSERT
   6. 이미지 URL 반환
 ```
@@ -831,7 +831,7 @@ src/lib/validations/
 | `nickname` | 2~20자, 트림, XSS 문자 제거 | 클라이언트 + 서버 |
 | `challenge_id` | UUID 형식 + 오늘 날짜 챌린지 존재 확인 | 서버 |
 | `slot_index` | 0 이상 정수, 챌린지 letters 길이 미만 | 서버 |
-| `image` (letter) | WebP, 500KB 이하 | 클라이언트 + 서버 |
+| `image` (letter) | WebP 또는 JPEG, 500KB 이하 (Day 4.5 옵션 A) | 클라이언트 + 서버 |
 | `image` (collage) | PNG, 2MB 이하 | 클라이언트 + 서버 |
 | `reason` (신고) | 1~500자, 트림 | 클라이언트 + 서버 |
 | `is_public` | boolean | 서버 |
@@ -873,7 +873,7 @@ type ApiError = {
 서버에서 반드시 재검증해야 하는 항목:
 1. **MIME type**: `Content-Type` 헤더 + 파일 매직 바이트 확인
 2. **파일 크기**: 설정된 제한 이하
-3. **확장자**: WebP 또는 PNG만 허용
+3. **확장자**: 글자=WebP·JPEG(Day 4.5 옵션 A) / 콜라주=PNG만 허용
 4. **이미지 유효성**: 실제로 디코딩 가능한 이미지인지 (선택적, MVP에서는 MIME만)
 
 > 클라이언트에서 EXIF를 strip하지만, 악의적 사용자가 직접 API를 호출할 수 있으므로 **서버에서도 EXIF strip을 수행하는 것이 이상적**. MVP에서는 클라이언트 EXIF strip만 구현하되, 서버 EXIF strip은 리스크로 기록.
@@ -993,6 +993,20 @@ type ApiError = {
 | (e) completed 전이(A4) | draft→completed는 **모든 슬롯 충족(`letter_pieces 수 == challenge.letters.length`) + 콜라주 업로드 완료**를 전제로만 허용, `completed_at` 세팅, `is_public` 토글 가능. hidden은 코드+RLS 차단, completed→draft 역전 금지. status 전이는 UPSERT가 아니라 **조건부 UPDATE** |
 | (f) Day 3 이월 정리(U1 포함) | ① `getKSTDateString` 중복 → 공유 유틸(`@/lib/utils/date` 류)로 합침, ② `src/lib/api/errors.ts`(+`supabase/server.ts` 검토)에 `import 'server-only'` 가드, ③ 중복제출 409 응답 타입 정합(`ApiErrorBody` 확장 또는 409 전용 타입). **seed 날짜 범위 넉넉히 연장 + 재실행**(/today 404 방지) |
 | (g) 작업 단위 | **2단위 = PR 2개**(예상) — U1 `phase2-day4-detail`: 이월정리(공유유틸·server-only·409타입) + seed 연장 + signed URL 헬퍼 + `GET /submissions/[id]`(A3) / U2 `phase2-day4-completion`: `POST /.../collage`(A6) + `PATCH`(A4 status/visibility). 의존 U1→U2 순차 머지, base=main, 게이트 A 문서 동기화는 별도 docs PR로 main 선반영. 두 unit 브랜치는 워크트리 `phase2-day4-completion-apis` 하나에 main 기준 스택으로 생성(Day 3 `phase2-day3-api-storage`가 unit 3종을 담은 것과 동일 구조). `route.ts`만 U1(GET)·U2(PATCH) 공유하나 스택이라 U2 diff엔 PATCH 추가분만 깔끔히 잡힘 |
+
+### Day 4.5 확정 결정 (게이트 A 통과, 2026-06-11)
+
+| 항목 | 결정 |
+|------|------|
+| (a) 오너십 | **Frontend 주도.** 백엔드 보강은 Day 4 QA M2 1건 — A3 응답 letter_pieces를 공유 타입 `ApiLetterPiece`(`image_url: string \| null` 명시, `src/types/api.ts`)로 고정. API 로직 무변경 |
+| (b) 패키지 | `@tanstack/react-query`(dep) + `@tanstack/react-query-devtools`(devDep) 설치 |
+| (c) 상태 경계 | **Zustand = 로컬 draft**(슬롯·IDB 키·배경색, 스토어 수정 없음) / **TanStack = 서버 상태**(챌린지·submission·signed URL). submission id는 클라이언트 미저장 — A2가 멱등 create-or-get(409 시 기존 동봉)이라 제출 시점마다 획득 |
+| (d) 화면·fetch | 홈 → 수집 → 미리보기 순 전환, **클라이언트 useQuery(CSR) 통일**(보호 라우트라 SEO 무관, SSR prefetch는 Phase 3). `GET /api/challenges/[id]` 미존재 → 수집·미리보기도 `['challenge','today']` 재사용 + URL id 불일치 시 홈 redirect(`TodayChallengeGate` 공유 컨테이너) |
+| (e) 캐시 | `['challenge','today']` staleTime 5m / `['submission',id]` **30m = signed URL TTL(1h)의 절반**(만료 전 재발급 보장) / 전역 기본 60s + 4xx 재시도 안 함. 제출 체인은 단일 mutation이라 invalidate는 최종 성공 시 `['submission',id]` 1회 |
+| (f) mutation | **제출 시점 일괄 동기화**: A2→A5×N(PNG→WebP 변환)→A6→A4 순차(`submitCollage` 오케스트레이터, deps 주입으로 단위 테스트). 전 단계 멱등 → 실패 시 처음부터 재시도. 진행 UI(n/N). **optimistic update 0건**(Phase 3 #16 이관). is_public은 제출 시 체크박스(기본 공개) |
+| (g) 작업 단위 | **4단위 = PR 4개** — U1 `phase2-day45-foundation`: providers+공유 와이어 타입+api-client(+테스트)+M2 / U2 `phase2-day45-screens`: 홈·수집 mock→real / U3 `phase2-day45-letters-jpeg`: 글자 업로드 JPEG 허용(마이그레이션 0004+검증+라우트+테스트, 분리 금지 묶음) / U4 `phase2-day45-submit-sync`: WebP·JPEG 변환+오케스트레이터(+테스트)+미리보기 제출 UI. base=main 스택, U1→U2→U3→U4 순차 머지 |
+| (부수) 파일 예산 | 단위당 5파일 기준 **완화 승인**(사용자, 2026-06-11) — 테스트 등 가치 있는 파일은 1~2개 초과 허용. U1·U4 각 6파일(테스트 포함)+U4 공유 컨테이너 1파일 |
+| (h) Safari WebP → **옵션 A 확정** (2026-06-11) | Safari(iOS)는 canvas WebP 인코딩 미지원(toBlob이 PNG로 폴백) → **글자 업로드에 JPEG 폴백 허용**. 마이그레이션 0004(letter-pieces 버킷 MIME에 image/jpeg 추가) + `validateLetterImage`(webp\|jpeg) + 라우트 확장자/contentType 분기 + 클라 `toLetterUploadImage` JPEG 재시도. 크기 500KB·경로 정책 불변. 거부 대안: WASM 인코더(의존성·wasm 번들·Turbopack 리스크), PNG 허용(사진에 비효율 — 500KB 초과 잦음) |
 
 ### Phase 2 구현 순서 (Day 1~5 + Day 4.5)
 

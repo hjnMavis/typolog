@@ -84,7 +84,7 @@ graph LR
 
 | 페이지 | 렌더링 | 이유 |
 |--------|--------|------|
-| 홈 (`/`) | SSR | 오늘의 챌린지 데이터를 서버에서 fetch |
+| 홈 (`/`) | CSR (TanStack Query) | 보호 라우트라 SEO 무관 — MVP는 클라이언트 fetch로 통일. SSR prefetch(HydrationBoundary)는 공개 화면이 생기는 Phase 3에서 도입 (Day 4.5 게이트 A-(d)) |
 | 글자 수집 (`/challenge/[id]`) | CSR 중심 | 카메라, Canvas 등 브라우저 API 집중 사용 |
 | 콜라주 미리보기 (`/challenge/[id]/preview`) | CSR | Canvas 렌더링 |
 | 오늘의 피드 (`/feed/today`) | SSR + CSR hydration | 초기 데이터는 서버, 이후 무한스크롤은 클라이언트 |
