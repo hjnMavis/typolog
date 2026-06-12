@@ -8,6 +8,7 @@ import { serializeSubmission } from '@/lib/api/serialize';
 import { createSignedUrl, SIGNED_URL_TTL } from '@/lib/storage/signed-url';
 import { createClient } from '@/lib/supabase/server';
 import { submissionIdSchema, updateSubmissionSchema } from '@/lib/validations/submission';
+import type { ApiLetterPiece } from '@/types/api';
 
 // Drizzle(postgres) + Supabase Storage SDK는 Node 전용이므로 엣지 추론을 막는다.
 export const runtime = 'nodejs';
@@ -58,7 +59,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   // letter_pieces(원자료)는 본인에게만 내려준다 — Storage 정책(§5.1)이 owner-only라
   // 외부 뷰어는 파일을 읽지 못한다(서명 시도 시 null). 공개 제출의 뷰어에겐 완성 콜라주만 노출하고
   // 글자 조각은 응답에서 제외해 경로/메타 노출 자체를 막는다.
-  const pieces = isOwner
+  // 응답 타입은 클라이언트와 공유하는 ApiLetterPiece로 고정한다 — image_url은
+  // signed URL 생성 실패(정책 거부·오류) 시 null일 수 있음을 타입으로 명시 (Day 4 QA M2).
+  const pieces: ApiLetterPiece[] = isOwner
     ? await Promise.all(
         (
           await db
