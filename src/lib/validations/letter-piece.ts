@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
-export const LETTER_IMAGE_MIME = 'image/webp';
+// WebP가 기본, JPEG는 Safari(iOS) canvas WebP 인코딩 미지원 폴백 (게이트 A Day4.5 옵션 A).
+// 버킷 allowed_mime_types(마이그레이션 0004)와 반드시 일치해야 한다.
+export const LETTER_IMAGE_MIMES = ['image/webp', 'image/jpeg'] as const;
 export const LETTER_IMAGE_MAX_BYTES = 500 * 1024; // 512000 (500KB)
 
 // POST /api/submissions/[id]/letters 의 FormData 비-파일 필드 (§6.3 A5).
@@ -23,8 +25,12 @@ export type LetterImageError = { status: 400 | 413; code: string; message: strin
 // 이미지 파일 검증 — MVP는 MIME 타입 + 크기까지만 (게이트 A Day3-(f), §7.5).
 // magic-byte 검사·서버측 EXIF strip·디코딩 유효성은 리스크로 기록 후 이관.
 export function validateLetterImage(file: File): LetterImageError | null {
-  if (file.type !== LETTER_IMAGE_MIME) {
-    return { status: 400, code: 'INVALID_IMAGE_TYPE', message: 'WebP 이미지만 업로드할 수 있습니다.' };
+  if (!(LETTER_IMAGE_MIMES as readonly string[]).includes(file.type)) {
+    return {
+      status: 400,
+      code: 'INVALID_IMAGE_TYPE',
+      message: 'WebP 또는 JPEG 이미지만 업로드할 수 있습니다.',
+    };
   }
   if (file.size > LETTER_IMAGE_MAX_BYTES) {
     return { status: 413, code: 'IMAGE_TOO_LARGE', message: '이미지는 500KB 이하만 업로드할 수 있습니다.' };

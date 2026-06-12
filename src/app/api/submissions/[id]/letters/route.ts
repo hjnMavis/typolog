@@ -85,11 +85,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // Storage 업로드 — 경로 첫 폴더 = 인증 사용자 id (Storage 정책 §5.1과 정렬).
   // path를 서버가 user.id로 구성하므로 타인 경로 업로드가 원천 불가하며,
   // 설령 조작해도 Storage 정책이 차단한다 (이중 방어).
-  const path = `${user.id}/${submissionId}/${slot_index}.webp`;
+  // 확장자는 검증된 MIME에서 유도 — WebP 기본, JPEG는 Safari 폴백 (게이트 A Day4.5 옵션 A).
+  // 같은 슬롯을 다른 포맷으로 재업로드하면 이전 확장자 파일이 고아로 남을 수 있으나(§8.3-3과
+  // 동일 부류) DB image_url이 항상 최신 경로를 가리키므로 표시 손상은 없다.
+  const ext = image.type === 'image/jpeg' ? 'jpg' : 'webp';
+  const path = `${user.id}/${submissionId}/${slot_index}.${ext}`;
   const bytes = await image.arrayBuffer();
   const { error: uploadError } = await supabase.storage
     .from('letter-pieces')
-    .upload(path, bytes, { contentType: 'image/webp', upsert: true });
+    .upload(path, bytes, { contentType: image.type, upsert: true });
   if (uploadError) {
     return jsonError(500, 'UPLOAD_FAILED', '이미지 업로드에 실패했습니다.');
   }
