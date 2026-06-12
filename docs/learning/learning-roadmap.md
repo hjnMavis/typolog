@@ -23,7 +23,7 @@
 | 12 | [Image Crop](#12-image-crop) | 1 | ★★★ |
 | 13 | [EXIF Metadata](#13-exif-metadata) | 1 | ★★☆ |
 | 14 | [Zustand](#14-zustand) | 1 | ★★☆ |
-| 15 | [TanStack Query](#15-tanstack-query) | 2~3 | ★★★ |
+| 15 | [TanStack Query](#15-tanstack-query) ✅ Day 4.5 도입 | 2~3 | ★★★ |
 | 16 | [Optimistic Update](#16-optimistic-update) | 3 | ★★★ |
 | 17 | [PostHog Event Tracking](#17-posthog-event-tracking) | 4 | ★★☆ |
 | 18 | [Sentry](#18-sentry) | 4 | ★☆☆ |
@@ -828,7 +828,7 @@ const slot0 = useChallengeStore((state) => state.slots[0]);
 
 ### 15. TanStack Query
 
-**언제 공부하나**: Phase 2 Day 4.5에서 **도입**(클라이언트↔서버 동기화) → Phase 3 피드에서 본격 활용
+**언제 공부하나**: Phase 2 Day 4.5에서 **도입 완료**(클라이언트↔서버 동기화) → Phase 3 피드에서 본격 활용
 
 **쉬운 설명**
 
@@ -879,11 +879,13 @@ const likeMutation = useMutation({
 
 **실습 태스크**
 
-- [ ] `useQuery`로 하드코딩된 API에서 데이터를 가져와서 표시하기
-- [ ] 로딩/에러/성공 상태를 각각 다른 UI로 보여주기
-- [ ] `useMutation`으로 좋아요 API를 호출하고, 성공 후 피드를 `invalidateQueries`로 갱신
-- [ ] `useInfiniteQuery`로 무한 스크롤 구현 (커서 기반)
-- [ ] DevTools를 열어서 Query 캐시 상태를 확인해보기
+- [x] `useQuery`로 하드코딩된 API에서 데이터를 가져와서 표시하기 — (Phase 2 Day 4.5: `useTodayChallenge`가 `['challenge','today']` 키로 A1을 조회, 홈·수집·미리보기가 같은 키 공유)
+- [x] 로딩/에러/성공 상태를 각각 다른 UI로 보여주기 — (Phase 2 Day 4.5: `TodayChallengeGate`가 `isPending`/`isError`+`ApiError.code` 분기로 스켈레톤·에러·재시도 UI 렌더)
+- [x] `useMutation`으로 좋아요 API를 호출하고, 성공 후 피드를 `invalidateQueries`로 갱신 — (Phase 2 Day 4.5: 좋아요 대신 제출 체인 `useSubmitCollage`가 A2→A5→A6→A4 단일 mutation, `onSuccess`에서 `invalidateQueries(['submission', id])` 1회. 좋아요는 Phase 3)
+- [ ] `useInfiniteQuery`로 무한 스크롤 구현 (커서 기반) — (Phase 3 피드 이관)
+- [x] DevTools를 열어서 Query 캐시 상태를 확인해보기 — (Phase 2 Day 4.5: `providers.tsx`에 `ReactQueryDevtools`, E2E 6-2에서 캐시 재사용·자동 갱신 확인)
+
+> **Phase 2 Day 4.5 학습 노트**: `docs/learning/phase-2-day-4.5.md` — ① Zustand(로컬 draft) vs TanStack Query(서버 상태) 경계 + submission id 미저장(create-or-get). ② `QueryClientProvider` isServer 싱글턴(서버 격리/브라우저 재사용)·전역 staleTime 60s·4xx 재시도 금지. ③ staleTime 설계: challenge 5m / submission 30m = signed URL TTL(1h)의 절반(깨진 이미지 방지). ④ 멱등 오케스트레이션 A2→A5×N→A6→A4(전 단계 멱등·완성 단축·단일 mutation·invalidate 1회·deps 주입 테스트). ⑤ Safari WebP 미지원 → 결과 타입 검사 후 JPEG 폴백 + 500KB 품질 단계 하향(서버 검증·버킷 MIME·라우트 분기 동기화, 마이그레이션 0004). ⑥ 타입 전용 공유 와이어 타입 `types/api.ts`(런타임 import 없음·Date→string·image_url null 폴백, Day4 QA M2). 다음 Day 5(RLS 검증·E2E·에러 처리·env) 다리 포함.
 
 ---
 

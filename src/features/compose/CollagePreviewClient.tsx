@@ -5,6 +5,9 @@ import Link from "next/link"
 import { useChallengeStore } from "@/stores/challenge-store"
 import { getImageBlob } from "@/lib/image/indexed-image-store"
 import { loadImage } from "@/lib/image/crop-image"
+import { TodayChallengeGate } from "@/features/challenge/TodayChallengeGate"
+import { useSubmissionDetail, useSubmitCollage } from "@/hooks/use-submission"
+import type { LetterSource, SubmitProgress } from "./submit-collage"
 import { getPieceLayout, canPreview } from "./collage-layout"
 import { canExport, buildCollageFilename, downloadCollage, shouldUseIosFallbackWithTouch } from "./export-collage"
 import { SLOT_BACKGROUND_COLORS, type BackgroundColor } from "@/lib/constants"
@@ -17,7 +20,7 @@ import { cn } from "@/lib/utils"
 import type { Challenge } from "@/types"
 
 interface CollagePreviewClientProps {
-  challenge: Challenge
+  challengeId: string
 }
 
 /** 콜라주 카드 배경이 어두운지 판단 — 카드 '내부' 글자 폴백 대비에만 사용 */
@@ -25,7 +28,38 @@ function isDarkBackground(color: BackgroundColor): boolean {
   return color === "#1a1a1a"
 }
 
-export function CollagePreviewClient({ challenge }: CollagePreviewClientProps) {
+/** 제출 진행 단계 → 버튼 라벨 (게이트 A-(f): 진행 표시) */
+function submitProgressLabel(progress: SubmitProgress | null): string {
+  if (!progress) return "제출 중…"
+  switch (progress.phase) {
+    case "creating":
+      return "제출 준비 중…"
+    case "uploading-letters":
+      return `글자 업로드 중 ${progress.current ?? 0}/${progress.total ?? 0}`
+    case "uploading-collage":
+      return "콜라주 업로드 중…"
+    case "completing":
+      return "완성 처리 중…"
+  }
+}
+
+/**
+ * 미리보기 화면 — TodayChallengeGate가 챌린지 서버 상태의 로딩/에러/URL 불일치를 처리하고,
+ * 준비되면 CollagePreviewView(기존 미리보기 UI + Day 4.5 제출 흐름)를 렌더한다.
+ */
+export function CollagePreviewClient({ challengeId }: CollagePreviewClientProps) {
+  return (
+    <TodayChallengeGate challengeId={challengeId}>
+      {(challenge) => <CollagePreviewView challenge={challenge} />}
+    </TodayChallengeGate>
+  )
+}
+
+interface CollagePreviewViewProps {
+  challenge: Challenge
+}
+
+function CollagePreviewView({ challenge }: CollagePreviewViewProps) {
   const { slots, initSlots } = useChallengeStore()
 
   /** 복원된 Object URL: key = slotIndex, value = 'blob:...' URL */
@@ -47,6 +81,19 @@ export function CollagePreviewClient({ challenge }: CollagePreviewClientProps) {
 
   /** 이 컴포넌트가 생성한 Object URL을 추적해 unmount 시 전부 revoke한다 */
   const objectUrlsRef = useRef<Map<number, string>>(new Map())
+
+  // ── 제출(서버 동기화) 상태 — Day 4.5 ──
+  /** 피드 공개 여부 (A4 is_public) — 기본 공개 */
+  const [isPublic, setIsPublic] = useState(true)
+  /** 제출 체인 진행 단계 (버튼 라벨용) */
+  const [submitProgress, setSubmitProgress] = useState<SubmitProgress | null>(null)
+  /** 제출 실패 메시지 (전 단계 멱등이라 "다시 시도"는 같은 핸들러 재실행) */
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  /** 제출 완료된 submission id — 설정되면 완료 UI로 전환 */
+  const [submittedId, setSubmittedId] = useState<string | null>(null)
+  const submitMutation = useSubmitCollage()
+  // 제출 완료 후 A3 상세를 조회해 서버가 내려준 콜라주 signed URL로 완료 상태를 확인한다
+  const { data: submittedDetail } = useSubmissionDetail(submittedId)
 
   // 슬롯 초기화 (idempotent — 이미 같은 challenge이면 store가 유지)
   useEffect(() => {
@@ -119,6 +166,29 @@ export function CollagePreviewClient({ challenge }: CollagePreviewClientProps) {
   const slotByIndex = new Map(slots.map((slot) => [slot.index, slot]))
 
   /**
+   * 각 슬롯의 HTMLImageElement를 로드해(없으면 텍스트 폴백) 콜라주 PNG Blob을 만든다.
+   * 저장하기(PNG 다운로드)와 제출하기(A6 업로드)가 같은 파이프라인을 공유한다.
+   */
+  const renderCollageBlob = async (): Promise<Blob> => {
+    const sortedSlots = [...slots].sort((a, b) => a.index - b.index)
+    const items = await Promise.all(
+      sortedSlots.map(async (slot) => {
+        const url = restoredUrls[slot.index] ?? null
+        if (!url) return { imageEl: null, character: slot.character }
+        try {
+          const imageEl = await loadImage(url)
+          return { imageEl, character: slot.character }
+        } catch {
+          // 이미지 로드 실패 시 텍스트 폴백
+          return { imageEl: null, character: slot.character }
+        }
+      })
+    )
+    // Canvas 렌더링 → PNG Blob 생성 (작성자 지정 줄 배치를 그대로 전달)
+    return renderCollageToBlob({ items, bgColor, lines: challenge.lines })
+  }
+
+  /**
    * PNG export 핸들러.
    * 사용자 제스처(버튼 클릭) 내에서 직접 호출돼야 iOS 팝업 차단을 최대한 피할 수 있다.
    */
@@ -130,24 +200,7 @@ export function CollagePreviewClient({ challenge }: CollagePreviewClientProps) {
     setShowIosSaveHint(false)
 
     try {
-      // 각 슬롯에 대해 HTMLImageElement 로드 (없으면 null → 텍스트 폴백)
-      const sortedSlots = [...slots].sort((a, b) => a.index - b.index)
-      const items = await Promise.all(
-        sortedSlots.map(async (slot) => {
-          const url = restoredUrls[slot.index] ?? null
-          if (!url) return { imageEl: null, character: slot.character }
-          try {
-            const imageEl = await loadImage(url)
-            return { imageEl, character: slot.character }
-          } catch {
-            // 이미지 로드 실패 시 텍스트 폴백
-            return { imageEl: null, character: slot.character }
-          }
-        })
-      )
-
-      // Canvas 렌더링 → PNG Blob 생성 (작성자 지정 줄 배치를 그대로 전달)
-      const blob = await renderCollageToBlob({ items, bgColor, lines: challenge.lines })
+      const blob = await renderCollageBlob()
 
       // 파일명: typolog-{challengeId}-{YYYYMMDD}.png (Asia/Seoul 기준 날짜)
       const filename = buildCollageFilename(challenge.id, getKSTDateString())
@@ -180,6 +233,54 @@ export function CollagePreviewClient({ challenge }: CollagePreviewClientProps) {
       setExportError(message)
     } finally {
       setIsExporting(false)
+    }
+  }
+
+  /**
+   * 제출 핸들러 — Zustand 로컬 draft를 서버로 동기화한다 (게이트 A-(f)).
+   * IDB에서 슬롯 Blob을 모아 A2(draft)→A5(letters×N)→A6(collage)→A4(complete)를
+   * 순차 실행한다. 전 단계가 멱등이라 실패 시 같은 버튼으로 처음부터 재시도해도 안전하다.
+   */
+  const handleSubmit = async () => {
+    if (!exportReady || submitMutation.isPending || submittedId) return
+
+    setSubmitError(null)
+    try {
+      // 1) 슬롯별 크롭 Blob 수집 (IndexedDB)
+      const sortedSlots = [...slots].sort((a, b) => a.index - b.index)
+      const letters: LetterSource[] = []
+      for (const slot of sortedSlots) {
+        const blob = slot.imageKey ? await getImageBlob(slot.imageKey) : null
+        if (!blob) {
+          throw new Error("글자 이미지를 찾을 수 없어요. 수집 화면에서 다시 채워주세요.")
+        }
+        letters.push({ slotIndex: slot.index, character: slot.character, blob })
+      }
+
+      // 2) 콜라주 PNG 렌더 — 저장하기와 동일 파이프라인 (A6 규격: PNG ≤2MB)
+      const collageBlob = await renderCollageBlob()
+
+      // 3) 순차 mutation 실행 (진행 단계는 버튼 라벨로 표시)
+      const submission = await submitMutation.mutateAsync({
+        challengeId: challenge.id,
+        letters,
+        collageBlob,
+        isPublic,
+        onProgress: setSubmitProgress,
+      })
+
+      setSubmittedId(submission.id)
+      debugLog("submit", "collage submitted", {
+        submissionId: submission.id,
+        status: submission.status,
+        isPublic: submission.is_public,
+      })
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "제출 중 오류가 발생했습니다."
+      setSubmitError(message)
+    } finally {
+      setSubmitProgress(null)
     }
   }
 
@@ -337,8 +438,66 @@ export function CollagePreviewClient({ challenge }: CollagePreviewClientProps) {
           </p>
         )}
 
+        {/* 제출 실패 메시지 — 전 단계 멱등이라 같은 버튼으로 재시도 */}
+        {submitError && (
+          <p
+            role="alert"
+            className="rounded-lg bg-destructive/10 px-4 py-2 text-center text-sm text-destructive"
+          >
+            {submitError}
+          </p>
+        )}
+
+        {submittedId ? (
+          // 제출 완료 — A3 상세(invalidate 후 재조회)가 내려준 상태·signed URL로 확인
+          <div
+            role="status"
+            className="space-y-2 rounded-lg bg-primary/10 px-4 py-3 text-center text-sm text-primary"
+          >
+            <p className="font-medium">제출 완료!</p>
+            <p>
+              {(submittedDetail?.submission.is_public ?? isPublic)
+                ? "오늘의 피드에 공개돼요."
+                : "비공개로 저장했어요."}
+            </p>
+            {submittedDetail?.collage_url && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={submittedDetail.collage_url}
+                alt="제출된 콜라주"
+                className="mx-auto mt-1 w-28 rounded-lg ring-1 ring-black/10"
+              />
+            )}
+          </div>
+        ) : (
+          <>
+            <label className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={isPublic}
+                onChange={(e) => setIsPublic(e.target.checked)}
+                disabled={submitMutation.isPending}
+                className="size-4 accent-primary"
+              />
+              오늘의 피드에 공개
+            </label>
+            <Button
+              size="lg"
+              className="w-full"
+              disabled={!exportReady || submitMutation.isPending}
+              aria-label={
+                submitMutation.isPending ? submitProgressLabel(submitProgress) : "제출하기"
+              }
+              onClick={handleSubmit}
+            >
+              {submitMutation.isPending ? submitProgressLabel(submitProgress) : "제출하기"}
+            </Button>
+          </>
+        )}
+
         <Button
           size="lg"
+          variant="outline"
           className="w-full"
           disabled={!exportReady || isExporting}
           aria-label={isExporting ? "PNG 저장 중…" : "PNG로 저장하기"}
