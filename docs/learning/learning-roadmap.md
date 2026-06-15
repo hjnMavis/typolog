@@ -367,11 +367,13 @@ CREATE POLICY "본인 데이터만 읽기" ON submissions
 - [x] RLS 없이 테이블에 데이터를 넣고, 다른 유저의 데이터도 조회되는지 확인 — (Phase 2 Day 1: QA RLS 시나리오 S4/S5에서 본인/타인 접근 차이 검증)
 - [x] RLS를 켜고 같은 쿼리를 실행 — 본인 데이터만 나오는지 확인 — (Phase 2 Day 1: submissions_select 정책, `0001_..._trigger.sql:54-67`)
 - [x] `USING`과 `WITH CHECK`를 각각 써서 읽기/쓰기 정책을 다르게 설정해보기 — (Phase 2 Day 1: submissions_update의 비대칭 — H2 사례, `docs/learning/phase-2-day-1.md §4`)
-- [ ] Supabase 대시보드의 "RLS Policy" 탭에서 정책 확인하는 방법 익히기
+- [x] Supabase 대시보드의 "RLS Policy" 탭에서 정책 확인하는 방법 익히기 — (Phase 2 Day 5: 대시보드 눈 확인을 넘어 `scripts/verify-rls.ts`로 정책을 **코드로 실증**. SET LOCAL ROLE+JWT 클레임 주입 시뮬레이션으로 27건 테이블 프로브 전통과, 마이그레이션 0001 라이브 적용 확인)
 
 > **Phase 2 Day 1 학습 노트**: `docs/learning/phase-2-day-1.md` — RLS(USING vs WITH CHECK), GRANT vs RLS 2단 관문, SECURITY DEFINER trigger, 하이브리드 마이그레이션, Drizzle 스키마 표현, `(SELECT auth.uid())` 캐싱, DATABASE_URL % 인코딩. QA H1(GRANT 누락)/H2(hidden 복원) 실전 사례 포함.
 >
 > **Phase 2 Day 2 RLS 연결**: Day 1에 만든 RLS가 Day 2에서 "실제로 작동하기 시작"한다. ① OAuth 로그인으로 발급된 JWT가 쿠키에 담기고, 그 안의 user id가 RLS의 `(SELECT auth.uid())`로 흘러온다(`docs/learning/phase-2-day-2.md §4·§5`). ② 클라이언트 3종 중 browser/server는 **RLS 적용**, admin은 **RLS 우회** — "어느 권한으로 DB를 치느냐"가 RLS 적용 여부를 가른다(§1). ③ 첫 로그인 시 Day 1의 `handle_new_user` trigger가 실전 발동해 `profiles`가 자동 생성된다(QA 권장 체크리스트). RLS 정책을 대시보드에서 눈으로 확인하는 마지막 태스크는 Day 3에서 함께 익힌다.
+>
+> **Phase 2 Day 5 RLS·Storage 검증 노트**: `docs/learning/phase-2-day-5.md` — Day 1·3에 만든 정책이 라이브에서 **실제로 작동함을 코드로 증명**. ① DB(Drizzle 직결·RLS 우회) vs Storage(유저 JWT·정책 발동)의 이원 방어 — 앱 클릭만으론 테이블 RLS가 영영 안 도는 이유. ② RLS 시뮬레이션: `SET LOCAL ROLE`+`request.jwt.claims`/`claim.sub` 주입으로 `auth.uid()`·`TO role` 흉내. ③ savepoint 격리+트랜잭션 ROLLBACK(라이브 무변경), `throw ROLLBACK` 센티넬 vs 진짜 에러 구분(fail-fast). ④ GRANT 레이어 vs RLS 레이어 평가 순서(둘 다 42501)·drizzle-kit 테이블 GRANT 명시. ⑤ USING(대상 선택·0행) vs WITH CHECK(결과 검사·42501) — H2(hidden→completed 0행 차단) + §8.4-② 재할당 차단의 "양성 짝" 변별력. ⑥ 거짓 양성 방어: 업로드 게이트(객체 부재≠정책 차단)·403/404 status 기록·allow/deny 짝으로 over-restrictive 탐지. ⑦ env 로딩 함정: `@next/env loadEnvConfig`로 앱과 동일하게 읽기·비밀은 presence boolean만. 결과 36/36 통과(0001·0003·0004 라이브 실증). 다음 다리: avatars 검증(#40 C)·Storage cleanup(#40 D)·Optimistic Update.
 
 ---
 
@@ -416,7 +418,7 @@ const { data } = await supabase.storage
 
 **실습 태스크**
 
-- [ ] Private 버킷의 파일에 일반 URL로 접근 시 403 에러 확인
+- [x] Private 버킷의 파일에 일반 URL로 접근 시 403 에러 확인 — (Phase 2 Day 5: `scripts/verify-rls.ts` Part 2가 실 JWT로 타인/anon이 private 경로(letter-pieces·비공개 collage)를 다운로드 시도 → `blocked (4xx)` 확인. 정책 차단(403)과 객체 부재(404)를 status로 구분 기록)
 - [x] `createSignedUrl()`로 임시 URL 생성 후 접근 성공 확인 — (Phase 2 Day 4: `src/lib/storage/signed-url.ts` `createSignedUrl(supabase, bucket, path, ttl)` 헬퍼 + `SIGNED_URL_TTL.EDIT(1h)`/`SHARE(24h)` 프리셋. A3 `GET /api/submissions/[id]`에서 콜라주·본인 글자 조각 경로를 읽기 시점에 서명해 내려줌)
 - [ ] 만료 시간을 10초로 설정하고, 10초 후 접근 실패 확인
 - [x] Public 버킷 vs Private 버킷의 URL 차이를 비교해보기 — (Phase 2 Day 4: private 버킷이라 DB엔 경로만 저장하고 읽기 시점에 서명. 요청자 JWT가 실린 server client로 서명해 storage.objects RLS(§5)가 적용 → 무권한 경로는 null로 URL이 새지 않음. admin client 서명 금지)
@@ -1296,6 +1298,15 @@ Phase 5+ (프로덕션 운영)
 - [x] Drizzle 스키마로 check/unique/부분 인덱스/authUsers FK를 표현할 수 있다
 - [x] `(SELECT auth.uid())` 래핑이 행마다 재평가를 막는 캐시임을 설명할 수 있다
 - [x] DATABASE_URL의 비밀번호 % 인코딩 함정을 설명할 수 있다 (Session pooler 5432)
+
+#### Phase 2 Day 5에서 추가로 익힌 것 (RLS·Storage 권한 검증)
+- [x] DB(Drizzle 직결·RLS 우회)와 Storage(유저 JWT·정책 발동)의 검증 방법이 다른 이유를 설명할 수 있다 — 앱 클릭만으론 테이블 RLS가 안 도는 이유
+- [x] `SET LOCAL ROLE` + `request.jwt.claims`/`claim.sub` 주입으로 `auth.uid()`·`TO role` 정책을 시뮬레이션할 수 있다
+- [x] savepoint 격리 + 트랜잭션 ROLLBACK으로 라이브 DB를 안 건드리고 검증하는 패턴을 설명할 수 있다 (`throw ROLLBACK` 센티넬 vs 진짜 에러 구분·fail-fast)
+- [x] GRANT 관문(없으면 42501)과 RLS 관문이 별개의 평가 순서임을, drizzle-kit 테이블에 GRANT를 명시해야 함과 함께 설명할 수 있다
+- [x] USING(대상 행 선택·0행 차단)과 WITH CHECK(변경 결과 검사·42501)의 차이를 H2 복원 차단·§8.4-② 재할당 차단으로 설명할 수 있다
+- [x] 보안 검증의 거짓 양성(객체 부재≠정책 차단)을 업로드 게이트·403/404 status 기록·allow/deny 짝으로 방어함을 설명할 수 있다
+- [x] 검증 스크립트가 앱과 동일한 env 로더(`@next/env loadEnvConfig`)를 써야 하는 이유와 비밀 비노출(presence boolean) 원칙을 설명할 수 있다
 
 #### Phase 2 Day 3에서 추가로 익힌 것 (핵심 API + Storage)
 - [x] 인증(누구인가)과 검증(보낸 게 올바른가)이 별개임을 설명할 수 있다 — zod safeParse(API 400) vs parse(seed 중단), isomorphic 모듈
