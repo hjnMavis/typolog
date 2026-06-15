@@ -759,6 +759,7 @@ Validation: challenge_id는 UUID, 오늘의 챌린지와 일치
 인증: 필요
 Body: FormData { image (File), slot_index (number), character (string) }
 응답: { id, image_url, slot_index, ... }
+상태 코드: 200 고정 — UPSERT라 신규 생성/교체를 구분하지 않는다. 클라이언트는 res.ok만 검사한다. (Day 5 M1 문서화)
 로직:
   1. submission이 본인 것인지 + draft 상태인지 확인
   2. slot_index가 유효한 범위인지 확인 (0 ~ letters.length - 1)
@@ -1007,6 +1008,16 @@ type ApiError = {
 | (g) 작업 단위 | **4단위 = PR 4개** — U1 `phase2-day45-foundation`: providers+공유 와이어 타입+api-client(+테스트)+M2 / U2 `phase2-day45-screens`: 홈·수집 mock→real / U3 `phase2-day45-letters-jpeg`: 글자 업로드 JPEG 허용(마이그레이션 0004+검증+라우트+테스트, 분리 금지 묶음) / U4 `phase2-day45-submit-sync`: WebP·JPEG 변환+오케스트레이터(+테스트)+미리보기 제출 UI. base=main 스택, U1→U2→U3→U4 순차 머지 |
 | (부수) 파일 예산 | 단위당 5파일 기준 **완화 승인**(사용자, 2026-06-11) — 테스트 등 가치 있는 파일은 1~2개 초과 허용. U1·U4 각 6파일(테스트 포함)+U4 공유 컨테이너 1파일 |
 | (h) Safari WebP → **옵션 A 확정** (2026-06-11) | Safari(iOS)는 canvas WebP 인코딩 미지원(toBlob이 PNG로 폴백) → **글자 업로드에 JPEG 폴백 허용**. 마이그레이션 0004(letter-pieces 버킷 MIME에 image/jpeg 추가) + `validateLetterImage`(webp\|jpeg) + 라우트 확장자/contentType 분기 + 클라 `toLetterUploadImage` JPEG 재시도. 크기 500KB·경로 정책 불변. 거부 대안: WASM 인코더(의존성·wasm 번들·Turbopack 리스크), PNG 허용(사진에 비효율 — 500KB 초과 잦음) |
+
+### Day 5 확정 결정 (게이트 A 통과, 2026-06-15)
+
+| 항목 | 결정 |
+|------|------|
+| (a) RLS 검증법 | **병행** 확정. 우리 앱은 DB=Drizzle 직결(postgres role)이라 테이블 RLS가 우회되어 앱 사용만으론 정책이 발동하지 않음 → **SQL 시뮬레이션**(`SET LOCAL ROLE` + `request.jwt.claims`/`request.jwt.claim.sub` 주입, savepoint 격리, 전체 ROLLBACK)으로 §3 정책 표·GRANT·회귀 2종(H2 hidden→completed 복원 차단, letter_pieces 타인 재할당 차단 §8.4-②)을 검증. Storage·실사용 방어선은 **실계정 JWT**로 버킷 정책(타인 차단/공개 허용)을 검증. 단일 스크립트 `scripts/verify-rls.ts`로 일원화 |
+| (b) 테스트 계정 | **즉석 생성→사용→자동 삭제.** `verify-rls.ts`가 admin API로 테스트 계정 A·B를 in-process 랜덤 비밀번호로 생성(trigger가 profiles 자동 생성)하고, finally에서 삭제(CASCADE로 동반 정리). `--keep`로 유지 가능. 사용자가 스크립트를 직접 실행하므로 secret key는 에이전트가 읽지 않음. 키·JWT·비밀번호·DATABASE_URL 미출력(env는 presence boolean만) |
+| (c) 이월 항목 | **포함**: iOS 실기기 JPEG 폴백 E2E(2-21 사용자 E2E에 흡수 — Day 4.5 게이트 B 잔여 리스크), M1(A5 상태코드 200 고정 §6.3 문서화, 코드 무변경), turbopack.root 경고 침묵(`next.config.ts`). **제외**: M3 devtools 번들(v5 production no-op 보증 — 검증 Day에 비필수 코드 변경 회피, Phase 3 번들 점검 시 재검토). M2(포맷 교체 고아 파일)는 Day 4.5에서 Phase 3 Storage cleanup 이관 확정 |
+| (d) 2-22 에러 처리 | **발견 결함만 수선.** 2-20/2-21 검증에서 Critical/High 발견 시에만 수정(U3 조건부, 미니 재승인). 알려진 끝단 3종(세션만료 401·콜라주 413·CHALLENGE_NOT_FOUND)은 점검만, 깨진 곳만 수선. 사전 방어 코드 선제 삽입은 Phase 3 |
+| (e) 작업 단위 | **U1 `phase2-day5-rls-verification`**: `scripts/verify-rls.ts`(직접 1파일) + 게이트 A 문서 동기화 docs 커밋(이 표 + §6.3 M1). **U2 `phase2-day5-wrapup`**: `.env.local.example` 정리(2-23) + `next.config.ts` turbopack.root(2파일). **U3(조건부)** `phase2-day5-fixes`: 검증 결함 수선 시에만. 의존 U1→U2 순차 머지, base=main |
 
 ### Phase 2 구현 순서 (Day 1~5 + Day 4.5)
 
