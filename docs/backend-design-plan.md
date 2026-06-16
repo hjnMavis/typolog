@@ -786,6 +786,8 @@ Body: FormData { image (File), slot_index (number), character (string) }
 커서 형식: `{created_at}_{id}` (ISO timestamp + UUID)
 ```
 
+> **Day 6 확정(게이트 A, 2026-06-15 — §9 "Day 6 확정 결정" 참조)**: 정렬 `created_at DESC, id ASC`(부분 인덱스 `idx_submissions_feed` 정합), keyset `(created_at < :c) OR (created_at = :c AND id > :id)`. 커서는 **base64url(`{created_at_iso}|{id}`)** 불투명 인코딩(zod 디코드 검증). `user_reacted`는 **정식 계산**(reactions 기존 테이블), 집계는 페이지 + 배치 1쿼리로 N+1 회피. collage는 §5.2 공개 읽기로 `createSignedUrl(TTL 1h)`, 실패 시 `collage_url: null` 폴백(타입 `| null`). `limit` 기본 20·최대 50, 내부 limit+1 조회로 `next_cursor` 판정.
+
 #### S1: toggleReaction
 
 ```typescript
@@ -1018,6 +1020,17 @@ type ApiError = {
 | (c) 이월 항목 | **포함**: iOS 실기기 JPEG 폴백 E2E(2-21 사용자 E2E에 흡수 — Day 4.5 게이트 B 잔여 리스크), M1(A5 상태코드 200 고정 §6.3 문서화, 코드 무변경), turbopack.root 경고 침묵(`next.config.ts`). **제외**: M3 devtools 번들(v5 production no-op 보증 — 검증 Day에 비필수 코드 변경 회피, Phase 3 번들 점검 시 재검토). M2(포맷 교체 고아 파일)는 Day 4.5에서 Phase 3 Storage cleanup 이관 확정 |
 | (d) 2-22 에러 처리 | **발견 결함만 수선.** 2-20/2-21 검증에서 Critical/High 발견 시에만 수정(U3 조건부, 미니 재승인). 알려진 끝단 3종(세션만료 401·콜라주 413·CHALLENGE_NOT_FOUND)은 점검만, 깨진 곳만 수선. 사전 방어 코드 선제 삽입은 Phase 3 |
 | (e) 작업 단위 | **U1 `phase2-day5-rls-verification`**: `scripts/verify-rls.ts`(직접 1파일) + 게이트 A 문서 동기화 docs 커밋(이 표 + §6.3 M1). **U2 `phase2-day5-wrapup`**: `.env.local.example` 정리(2-23) + `next.config.ts` turbopack.root(2파일). **U3(조건부)** `phase2-day5-fixes`: 검증 결함 수선 시에만. 의존 U1→U2 순차 머지, base=main |
+
+### Day 6 확정 결정 (게이트 A 통과, 2026-06-15) — Phase 3 첫 Day
+
+| 항목 | 결정 |
+|------|------|
+| (a) 오너십 분담 | **Backend = A7 `GET /api/feed`(API) / Frontend = 피드 화면·무한스크롤·카드(UI).** 파일 소유권(agent-view-workflow)대로 분담. Backend가 응답 와이어 타입 `ApiFeedItem`/`ApiFeedResponse`를 `src/types/api.ts`에 먼저 고정 → Frontend가 import(Day 4.5 `ApiLetterPiece` 패턴, 런타임 import 없는 경계 공유) |
+| (b) 커서 설계 | **정렬 `ORDER BY created_at DESC, id ASC`** — 부분 인덱스 `idx_submissions_feed`(`challenge_id, created_at DESC, id`)의 tiebreaker(id ASC)와 정합. **keyset 술어 `(created_at < :c) OR (created_at = :c AND id > :id)`**(중복·누락 0). **커서 = base64url(`{created_at_iso}\|{id}`)** 불투명 인코딩, zod로 디코드 후 ISO+UUID 검증. `limit`은 `z.coerce.number().int().min(1).max(50).default(20)`, 내부 **limit+1건** 조회로 다음 페이지 존재 판정 → 마지막 항목으로 `next_cursor` 생성·초과분 폐기, 끝이면 `next_cursor: null` |
+| (c) user_reacted | **정식 계산 확정**(false 스텁 아님). `reactions` 테이블·RLS·GRANT는 Day 1 기존 — 읽기만 추가. API 계약을 Day 6에 한 번에 확정해 Day 7(토글 S1)이 계약 변경 없이 optimistic만 얹게 함. **N+1 회피**: 페이지(submissions⨝profiles) 1쿼리 + 그 페이지 submission_id 배치 집계 1쿼리(`reaction_count` GROUP BY + 본인 reacted EXISTS). Day 6 시점엔 reaction 0건이라 전부 `count=0`/`user_reacted=false`지만 쿼리·계약은 완성형. 카드 하트는 **수만 표시(비활성)**, 토글·optimistic은 Day 7(로드맵 #16) |
+| (d) signed URL/캐시 | collages는 공개 완성 제출이라 §5.2 정책으로 읽기 — 항목별 `createSignedUrl(supabase, 'collages', path, TTL)`. **TTL = `SIGNED_URL_TTL.EDIT`(1h)**(인증 브라우징 세션 기준, 공유 24h는 Day 8). 서명 실패 시 `collage_url: null` → 카드 폴백(Day 4 M2 패턴, 타입 `\| null`). **쿼리 키 = `['feed', challengeId]`** — `useInfiniteQuery`는 커서를 키에 넣지 않고 `pageParam`으로 페이지를 쌓음(킥오프 §5의 `['feed', challengeId, cursor]`는 일반 useQuery 표현). **staleTime 60s**(전역 기본, 60s ≪ TTL 1h이라 "신선 캐시+만료 URL" 위험 없음, Day 4.5 §3 staleTime ≤ TTL 규칙 만족). `getNextPageParam`이 `next_cursor`(null=끝) 반환. 피드 화면은 `useTodayChallenge`로 challengeId 획득 후 `useFeed(challengeId)` |
+| (e) 작업 단위 | **2단위 = PR 2개.** **U1 `phase3-day6-feed-api`**(Backend): A7 route + `src/lib/validations/feed.ts`(커서 인코드/디코드 + cursor/limit zod) + `src/types/api.ts`(피드 타입) + 커서 단위 테스트 + 이 표 docs 동기화. **U2 `phase3-day6-feed-screen`**(Frontend): `src/lib/api-client.ts`(`fetchFeed`) + `src/hooks/use-feed.ts`(useInfiniteQuery) + `src/app/feed/today/page.tsx` + `src/features/feed/FeedClient.tsx` + `FeedCard.tsx`(+옵션 `use-intersection-observer`). 의존 **U1→U2 순차 머지**, base=최신 origin/main 스택. 킥오프 §5 3분리안 대신 **화면+카드 묶음**(카드 없는 화면 머지 = 깨진 UI, agent-view-workflow "쪼개면 안 되는 경우"); PR 내부는 카드→훅·fetcher→화면·무한스크롤→폴리시 세분 커밋 |
+| (부수) 파일 예산 | **U2 5~6파일 완화 사전 승인**(사용자, 2026-06-15). U1은 직접 4파일(route·validations·types·test)+docs(비산입) |
 
 ### Phase 2 구현 순서 (Day 1~5 + Day 4.5)
 
