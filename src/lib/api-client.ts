@@ -7,6 +7,7 @@ import type { Challenge } from '@/types';
 import type {
   ApiCollageUploadResult,
   ApiErrorResponse,
+  ApiFeedResponse,
   ApiSubmission,
   ApiSubmissionConflict,
   ApiSubmissionDetail,
@@ -127,6 +128,19 @@ export async function uploadCollage(
   });
   if (!res.ok) throw await toApiError(res);
   return (await res.json()) as ApiCollageUploadResult;
+}
+
+// A7 — 오늘의 피드 (cursor 기반 페이지네이션). cursor 없으면 첫 페이지.
+// collage_url은 signed URL(1h) 또는 null — 클라이언트가 null 폴백을 처리해야 한다.
+export async function fetchFeed(
+  challengeId: string,
+  cursor?: string,
+): Promise<ApiFeedResponse> {
+  const params = new URLSearchParams({ challenge_id: challengeId });
+  if (cursor) params.set('cursor', cursor);
+  const res = await fetch(`/api/feed?${params.toString()}`);
+  if (!res.ok) throw await toApiError(res);
+  return (await res.json()) as ApiFeedResponse;
 }
 
 export type UpdateSubmissionInput = {

@@ -830,7 +830,7 @@ const slot0 = useChallengeStore((state) => state.slots[0]);
 
 ### 15. TanStack Query
 
-**언제 공부하나**: Phase 2 Day 4.5에서 **도입 완료**(클라이언트↔서버 동기화) → Phase 3 피드에서 본격 활용
+**언제 공부하나**: Phase 2 Day 4.5에서 **도입 완료**(클라이언트↔서버 동기화) → Phase 3 Day 6 피드에서 `useInfiniteQuery`로 **본격 활용**
 
 **쉬운 설명**
 
@@ -884,10 +884,12 @@ const likeMutation = useMutation({
 - [x] `useQuery`로 하드코딩된 API에서 데이터를 가져와서 표시하기 — (Phase 2 Day 4.5: `useTodayChallenge`가 `['challenge','today']` 키로 A1을 조회, 홈·수집·미리보기가 같은 키 공유)
 - [x] 로딩/에러/성공 상태를 각각 다른 UI로 보여주기 — (Phase 2 Day 4.5: `TodayChallengeGate`가 `isPending`/`isError`+`ApiError.code` 분기로 스켈레톤·에러·재시도 UI 렌더)
 - [x] `useMutation`으로 좋아요 API를 호출하고, 성공 후 피드를 `invalidateQueries`로 갱신 — (Phase 2 Day 4.5: 좋아요 대신 제출 체인 `useSubmitCollage`가 A2→A5→A6→A4 단일 mutation, `onSuccess`에서 `invalidateQueries(['submission', id])` 1회. 좋아요는 Phase 3)
-- [ ] `useInfiniteQuery`로 무한 스크롤 구현 (커서 기반) — (Phase 3 피드 이관)
+- [x] `useInfiniteQuery`로 무한 스크롤 구현 (커서 기반) — (Phase 3 Day 6: `useFeed`가 `useInfiniteQuery`로 A7 피드를 keyset 커서 페이지네이션. queryKey=`['feed', challengeId]`(cursor 미포함), cursor는 pageParam, `getNextPageParam: next_cursor ?? undefined`, IntersectionObserver 센티널. `docs/learning/phase-3-day-6.md`)
 - [x] DevTools를 열어서 Query 캐시 상태를 확인해보기 — (Phase 2 Day 4.5: `providers.tsx`에 `ReactQueryDevtools`, E2E 6-2에서 캐시 재사용·자동 갱신 확인)
 
 > **Phase 2 Day 4.5 학습 노트**: `docs/learning/phase-2-day-4.5.md` — ① Zustand(로컬 draft) vs TanStack Query(서버 상태) 경계 + submission id 미저장(create-or-get). ② `QueryClientProvider` isServer 싱글턴(서버 격리/브라우저 재사용)·전역 staleTime 60s·4xx 재시도 금지. ③ staleTime 설계: challenge 5m / submission 30m = signed URL TTL(1h)의 절반(깨진 이미지 방지). ④ 멱등 오케스트레이션 A2→A5×N→A6→A4(전 단계 멱등·완성 단축·단일 mutation·invalidate 1회·deps 주입 테스트). ⑤ Safari WebP 미지원 → 결과 타입 검사 후 JPEG 폴백 + 500KB 품질 단계 하향(서버 검증·버킷 MIME·라우트 분기 동기화, 마이그레이션 0004). ⑥ 타입 전용 공유 와이어 타입 `types/api.ts`(런타임 import 없음·Date→string·image_url null 폴백, Day4 QA M2). 다음 Day 5(RLS 검증·E2E·에러 처리·env) 다리 포함.
+>
+> **Phase 3 Day 6 학습 노트**: `docs/learning/phase-3-day-6.md` — A7 피드(`GET /api/feed`) + 무한 스크롤. ① keyset(커서) vs offset — 살아있는 목록의 중복/누락·재스캔 회피, `created_at DESC, id ASC` 전순서 + 술어 방향 정합 + 부분 인덱스 `idx_submissions_feed` 적중 + `limit+1` hasMore. ② 불투명 커서 base64url `{iso}|{id}` + zod 재검증(→400 INVALID_CURSOR). ③ timestamptz(μs) vs JS Date(ms) 절삭 → 경계 1행 누락 Low 제약(MVP 미수정·근본 해결 epoch μs). ④ N+1 회피 — 페이지 1쿼리 + IN/GROUP BY 배치 2쿼리(Promise.all)·빈 페이지 `inArray([])` 조기 반환. ⑤ 항목별 signed URL(1h)+null 폴백·staleTime 60s ≪ TTL 3600s. ⑥ Drizzle 직결 RLS 우회 → `status/is_public/challenge_id` 코드 가시성 1차 방어(Day5 연결). ⑦ `useInfiniteQuery`(queryKey에 cursor 미포함·pageParam·`getNextPageParam: next_cursor ?? undefined`·enabled 의존 체인). ⑧ IntersectionObserver 센티널(enabled 가드·useCallback 안정화·cleanup). 다음 Day 7(반응 toggle + optimistic update) 다리: 확정해 둔 `reaction_count`/`user_reacted` 계약과 무한 쿼리 캐시(`pages[].items[]`) 구조가 발판.
 
 ---
 
@@ -1327,7 +1329,19 @@ Phase 5+ (프로덕션 운영)
 - [ ] Zustand(클라이언트 상태)와 TanStack Query(서버 상태)를 왜 분리하는지 설명할 수 있다
 - [ ] Optimistic Update를 구현할 수 있다
 - [ ] 실패 시 롤백 로직을 구현할 수 있다
-- [ ] Infinite Query로 무한 스크롤을 구현할 수 있다
+- [x] Infinite Query로 무한 스크롤을 구현할 수 있다 — (Phase 3 Day 6: keyset 커서 + `useInfiniteQuery`(cursor=pageParam) + IntersectionObserver 센티널, `docs/learning/phase-3-day-6.md`)
+
+#### Phase 3 Day 6에서 추가로 익힌 것 (피드 — 커서 페이지네이션 + 무한 스크롤)
+- [x] 살아있는 목록에 offset이 아니라 keyset(커서) 페이지네이션을 쓰는 이유(offset 재스캔·중복/누락)를 설명할 수 있다
+- [x] `created_at DESC, id ASC` 전순서와 keyset 술어 `(created_at < :c) OR (created_at = :c AND id > :id)`의 방향 정합 + 부분 인덱스 `idx_submissions_feed` 적중을 설명할 수 있다
+- [x] 불투명 커서(base64url `{iso}|{id}`)로 내부 구조를 숨기고, 돌아온 값을 zod로 재검증(→400)하는 이유를 설명할 수 있다
+- [x] timestamptz(μs) vs JS Date(ms) 정밀도 절삭으로 경계 1행이 누락될 수 있는 Low 제약과 MVP 미수정·근본 해결(epoch μs)을 설명할 수 있다
+- [x] N+1을 IN + GROUP BY 배치 2쿼리(Promise.all)로 누르고 빈 페이지에서 `inArray([])`를 피하는 조기 반환을 설명할 수 있다
+- [x] 항목별 signed URL(1h)+null 폴백, staleTime 60s ≪ TTL 3600s 관계를 설명할 수 있다
+- [x] Drizzle 직결의 RLS 우회 때문에 `status/is_public/challenge_id` 가시성 필터를 코드가 1차 강제해야 함을 설명할 수 있다
+- [x] queryKey에 cursor를 넣지 않고 pageParam으로 흘리는 이유, `getNextPageParam: next_cursor ?? undefined` 정지 조건을 설명할 수 있다
+- [x] IntersectionObserver 센티널의 enabled 가드(`hasNextPage && !isFetchingNextPage`)·useCallback 안정화·cleanup을 설명할 수 있다
+- [x] 서버가 확정한 `reaction_count`/`user_reacted` 계약이 Day 7 optimistic 토글의 발판이 됨을 설명할 수 있다
 
 ### Phase 4 체크리스트
 - [ ] PostHog에서 이벤트를 보내고 대시보드에서 확인할 수 있다
