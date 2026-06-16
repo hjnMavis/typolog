@@ -86,8 +86,9 @@ src/
 
 ## 현재 Phase
 
-**Phase 2: Supabase 백엔드 연동**
-- DB·RLS·trigger (Day 1) → 인증·클라이언트 3종 (Day 2) → 핵심 API·Storage (Day 3 완료) → 제출완성 API (Day 4) → 클라이언트 동기화·TanStack (Day 4.5) → 검증·마무리 (Day 5)
+**Phase 3: 소셜 — 피드·반응·공유·프로필**
+- 피드 (Day 6, 진행 중) → 반응·신고 (Day 7) → 공유·OG (Day 8) → 마이페이지·프로필 (Day 9) → 통합 검증 (Day 10)
+- Phase 2(Supabase 백엔드 연동) 완료·전체 머지 (Day 1~5 + Day 4.5)
 - 구현 순서·Day별 확정 결정: `docs/backend-design-plan.md` §9
 
 ## 주요 명령어

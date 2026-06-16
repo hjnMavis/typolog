@@ -75,3 +75,27 @@ export type ApiErrorResponse = {
 export type ApiSubmissionConflict = ApiErrorResponse & {
   submission: ApiSubmission | null;
 };
+
+// A7 GET /api/feed — 피드 와이어 타입 (§6.3 A7, §9 Day 6 확정)
+
+// 피드 카드에 필요한 최소 프로필 정보
+export type ApiFeedProfile = {
+  id: string;
+  nickname: string;
+  avatar_url: string | null;
+};
+
+// 피드 1개 항목 — submission(status='completed', is_public=true), 프로필, 반응 집계, signed URL
+export type ApiFeedItem = {
+  submission: ApiSubmission;
+  profile: ApiFeedProfile;
+  collage_url: string | null; // signed URL(1h) 또는 서명 실패 폴백 null (Day 4 M2 패턴)
+  reaction_count: number;
+  user_reacted: boolean;
+};
+
+// A7 응답 바디 — cursor pagination
+export type ApiFeedResponse = {
+  items: ApiFeedItem[];
+  next_cursor: string | null; // base64url 커서, 마지막 페이지면 null
+};
