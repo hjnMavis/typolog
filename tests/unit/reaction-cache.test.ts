@@ -25,6 +25,7 @@ function makeItem(id: string, reacted: boolean, count: number): ApiFeedItem {
     collage_url: null,
     reaction_count: count,
     user_reacted: reacted,
+    is_mine: false,
   };
 }
 
