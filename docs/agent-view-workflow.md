@@ -54,7 +54,7 @@ Frontend Agent:
   src/features/, src/lib/canvas/, src/lib/utils/
 
 Backend Agent:
-  src/app/api/ (OG 이미지 포함), src/db/, src/lib/supabase/, src/types/
+  src/app/api/ (OG 이미지 포함), src/db/, src/lib/supabase/, src/lib/actions/ (Server Action — Day 7~), src/types/
   supabase/, src/proxy.ts (Next 16 — 구 middleware.ts)
   .github/workflows/, next.config.ts, drizzle.config.ts
 
