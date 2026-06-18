@@ -92,6 +92,7 @@ export type ApiFeedItem = {
   collage_url: string | null; // signed URL(1h) 또는 서명 실패 폴백 null (Day 4 M2 패턴)
   reaction_count: number;
   user_reacted: boolean;
+  is_mine: boolean; // 현재 사용자의 제출인지 — 본인 카드에선 신고 버튼을 숨긴다 (Day 7 결정 5)
 };
 
 // A7 응답 바디 — cursor pagination
