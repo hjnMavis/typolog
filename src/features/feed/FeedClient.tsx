@@ -125,6 +125,9 @@ export function FeedClient() {
     );
   }
 
+  // 이 지점에선 피드 데이터가 존재하므로 challenge.id도 반드시 있다 (의존 체인). TS 내로잉용 가드.
+  if (!challenge) return null;
+
   // 모든 페이지의 아이템을 평탄화
   const items: ApiFeedItem[] = data.pages.flatMap((page) => page.items);
 
@@ -149,7 +152,7 @@ export function FeedClient() {
       {/* 2열 그리드 */}
       <div className="grid grid-cols-2 gap-3">
         {items.map((item) => (
-          <FeedCard key={item.submission.id} item={item} />
+          <FeedCard key={item.submission.id} item={item} challengeId={challenge.id} />
         ))}
       </div>
 

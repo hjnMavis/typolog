@@ -1,9 +1,11 @@
 'use client';
 
+import { useToggleReaction } from '@/hooks/use-reaction';
 import type { ApiFeedItem } from '@/types/api';
 
 interface FeedCardProps {
   item: ApiFeedItem;
+  challengeId: string; // ['feed', challengeId] 캐시 특정용 (optimistic toggle)
 }
 
 // 닉네임 첫 글자를 아바타 이니셜로 사용 (avatar_url null 폴백)
@@ -11,9 +13,10 @@ function getInitial(nickname: string): string {
   return nickname.charAt(0).toUpperCase();
 }
 
-// Day 6: 반응(reaction)은 표시 전용 — 클릭 이벤트 없음 (toggle은 Day 7 구현)
-export function FeedCard({ item }: FeedCardProps) {
-  const { profile, collage_url, reaction_count, user_reacted } = item;
+// Day 7: 반응 토글(optimistic). 클릭 시 서버 응답 전 캐시 선반영 → 실패 시 롤백.
+export function FeedCard({ item, challengeId }: FeedCardProps) {
+  const { submission, profile, collage_url, reaction_count, user_reacted } = item;
+  const toggle = useToggleReaction(challengeId);
 
   return (
     <article className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
@@ -66,19 +69,30 @@ export function FeedCard({ item }: FeedCardProps) {
           <span className="truncate text-sm font-medium">{profile.nickname}</span>
         </div>
 
-        {/* 반응 (표시 전용) */}
-        <div
-          className="flex shrink-0 items-center gap-1 text-sm"
-          aria-label={`좋아요 ${reaction_count}개`}
-        >
-          {/* 하트 아이콘: user_reacted → 채운 하트, 아니면 빈 하트 */}
-          <span
-            className={user_reacted ? 'text-red-500' : 'text-muted-foreground'}
-            aria-hidden="true"
+        {/* 우측: 반응 토글 */}
+        <div className="flex shrink-0 items-center gap-1.5">
+          {/* 좋아요 토글 — 클릭 시 optimistic 반영, 진행 중엔 비활성 */}
+          <button
+            type="button"
+            onClick={() => toggle.mutate(submission.id)}
+            disabled={toggle.isPending}
+            aria-pressed={user_reacted}
+            aria-label={
+              user_reacted
+                ? `좋아요 취소 (현재 ${reaction_count}개)`
+                : `좋아요 (현재 ${reaction_count}개)`
+            }
+            className="flex items-center gap-1 text-sm disabled:opacity-60"
           >
-            {user_reacted ? '♥' : '♡'}
-          </span>
-          <span className="text-muted-foreground">{reaction_count}</span>
+            {/* 하트 아이콘: user_reacted → 채운 하트, 아니면 빈 하트 */}
+            <span
+              className={user_reacted ? 'text-red-500' : 'text-muted-foreground'}
+              aria-hidden="true"
+            >
+              {user_reacted ? '♥' : '♡'}
+            </span>
+            <span className="text-muted-foreground">{reaction_count}</span>
+          </button>
         </div>
       </div>
     </article>
