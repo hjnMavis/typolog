@@ -1032,6 +1032,19 @@ type ApiError = {
 | (e) 작업 단위 | **2단위 = PR 2개.** **U1 `phase3-day6-feed-api`**(Backend): A7 route + `src/lib/validations/feed.ts`(커서 인코드/디코드 + cursor/limit zod) + `src/types/api.ts`(피드 타입) + 커서 단위 테스트 + 이 표 docs 동기화. **U2 `phase3-day6-feed-screen`**(Frontend): `src/lib/api-client.ts`(`fetchFeed`) + `src/hooks/use-feed.ts`(useInfiniteQuery) + `src/app/feed/today/page.tsx` + `src/features/feed/FeedClient.tsx` + `FeedCard.tsx`(+옵션 `use-intersection-observer`). 의존 **U1→U2 순차 머지**, base=최신 origin/main 스택. 킥오프 §5 3분리안 대신 **화면+카드 묶음**(카드 없는 화면 머지 = 깨진 UI, agent-view-workflow "쪼개면 안 되는 경우"); PR 내부는 카드→훅·fetcher→화면·무한스크롤→폴리시 세분 커밋 |
 | (부수) 파일 예산 | **U2 5~6파일 완화 사전 승인**(사용자, 2026-06-15). U1은 직접 4파일(route·validations·types·test)+docs(비산입) |
 
+### Day 7 확정 결정 (게이트 A 통과, 2026-06-18) — 반응 + 신고
+
+| 항목 | 결정 |
+|------|------|
+| (a) 오너십 분담 | **Backend = S1 `toggleReaction`·S2 `createReport`(Server Action) + zod 검증 / Frontend = 좋아요 토글 UI(optimistic)·신고 다이얼로그·훅.** 같은 PR 내 BE/FE는 서로 다른 파일이라 무충돌 |
+| (b) Server Action 채택·위치 | §6.4대로 단순 mutation → **Server Action 확정**(`'use server'` + `server-only`, Next 기본 CSRF). 위치 **신규 `src/lib/actions/`(Backend 소유, agent-view-workflow 동기화)**. `toggleReaction`은 `{user_reacted, reaction_count}` 권위값 반환. `revalidatePath` 미사용(피드는 A7 클라 fetch) |
+| (c) Optimistic 캐시 | `useInfiniteQuery` 캐시(`['feed', challengeId]`, `pages[].items[]`)에서 **해당 submission 1개만** `setQueryData` 갱신. onMutate(cancelQueries+스냅샷+±1, 0클램프)/onError(롤백)/onSuccess(서버값 정정). **onSettled 전체 invalidate 미사용**(전체 재fetch=signed URL 재서명·스크롤 점프). 순수 함수 `feed/reaction-cache.ts`로 분리해 단위 테스트 |
+| (d) 토글 멱등·동시성 | INSERT(`onConflictDoNothing`)/DELETE 토글(UPDATE 없음), UNIQUE(user_id, submission_id) 근거. 토글 후 `count()` 재조회로 권위값 반환. 클라 `isPending` 연타 가드. user_id는 서버 인증 사용자로 강제(RLS 우회 → 코드 검증) |
+| (e) 신고 UX·정책 | shadcn `dialog` 재사용 + native `<textarea>`, reason **1~500자 트림**(zod 클라+서버). **자기 신고 차단 2겹**: 서버 `SELF_REPORT` + 피드 `is_mine`로 본인 카드 신고버튼 숨김. 중복 신고는 현재 허용 → **이슈 #48 이관**. `createReport`는 throw 아닌 `{ok, code}` 반환(Next prod 메시지 마스킹 회피) |
+| (f) 작업 단위 | **기능별 2 PR 스택** — U1 `phase3-day7-reactions`(좋아요: 검증·action·캐시·훅·FeedCard(하트)·FeedClient·테스트) → U2 `phase3-day7-reports`(신고: 검증·action·훅·ReportDialog·`is_mine`(types/route)·FeedCard(신고)·테스트). base=origin/main 스택, U1→U2 순차 머지(#47로 CI 자동) |
+| (부수) 파일 예산 | **단위당 5~6파일 완화 승인**(사용자, 2026-06-18). **마이그레이션 0**(reactions/reports 테이블·RLS·GRANT는 Day 1 기존, 쓰기 코드만 추가) |
+| (후속) 백로그 | Day 7 E2E·논의 도출: 로그아웃+로컬 draft 정리 **#52** / 계정전환 draft 누수 버그 **#53**(Day 7 직후 함께 처리) / 제출 업로드 병렬화 **#50**(Day 10·백로그) / 제출 후 피드 이동 UX **#51**(Day 8). 실기기·오프라인 롤백 E2E는 **#40**(배포 전) |
+
 ### Phase 2 구현 순서 (Day 1~5 + Day 4.5)
 
 ```
