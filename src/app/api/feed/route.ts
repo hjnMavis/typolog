@@ -166,6 +166,7 @@ export async function GET(request: Request) {
     collage_url: signedUrls[i],
     reaction_count: reactionCountMap.get(r.sub_id) ?? 0,
     user_reacted: userReactedSet.has(r.sub_id),
+    is_mine: r.sub_user_id === user.id, // 본인 카드 신고 버튼 숨김용 (Day 7 결정 5)
   }));
 
   // 10. next_cursor — 마지막 페이지 항목 기준으로 인코딩 (끝이면 null)

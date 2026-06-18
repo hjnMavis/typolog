@@ -1,6 +1,7 @@
 'use client';
 
 import { useToggleReaction } from '@/hooks/use-reaction';
+import { ReportDialog } from './ReportDialog';
 import type { ApiFeedItem } from '@/types/api';
 
 interface FeedCardProps {
@@ -13,9 +14,9 @@ function getInitial(nickname: string): string {
   return nickname.charAt(0).toUpperCase();
 }
 
-// Day 7: 반응 토글(optimistic). 클릭 시 서버 응답 전 캐시 선반영 → 실패 시 롤백.
+// Day 7: 반응 토글(optimistic) + 신고 다이얼로그. 본인 글(is_mine)은 신고 버튼을 숨긴다.
 export function FeedCard({ item, challengeId }: FeedCardProps) {
-  const { submission, profile, collage_url, reaction_count, user_reacted } = item;
+  const { submission, profile, collage_url, reaction_count, user_reacted, is_mine } = item;
   const toggle = useToggleReaction(challengeId);
 
   return (
@@ -69,8 +70,10 @@ export function FeedCard({ item, challengeId }: FeedCardProps) {
           <span className="truncate text-sm font-medium">{profile.nickname}</span>
         </div>
 
-        {/* 우측: 반응 토글 */}
+        {/* 우측: 신고 진입(본인 글 제외) + 반응 토글 */}
         <div className="flex shrink-0 items-center gap-1.5">
+          {!is_mine && <ReportDialog submissionId={submission.id} nickname={profile.nickname} />}
+
           {/* 좋아요 토글 — 클릭 시 optimistic 반영, 진행 중엔 비활성 */}
           <button
             type="button"
