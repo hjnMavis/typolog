@@ -204,10 +204,12 @@ export async function toggleLike(submissionId: string) {
 **실습 태스크**
 
 - [x] Route Handler로 `GET /api/hello`를 만들어서 브라우저에서 JSON 응답 확인 — (Phase 2 Day 3: `GET /api/challenges/today` 공개 GET Route Handler, `runtime='nodejs'`+`force-dynamic`)
-- [ ] Server Action으로 버튼 클릭 시 `console.log`를 서버에서 찍어보기
+- [x] Server Action으로 버튼 클릭 시 `console.log`를 서버에서 찍어보기 — (Phase 3 Day 7: 프로젝트 **최초 Server Action 도입**. `src/lib/actions/reactions.ts`의 `toggleReaction`('use server')을 `FeedCard` 하트 버튼 클릭이 `useToggleReaction` 훅 경유로 RPC 호출. §6.4 선택 기준: 단순 mutation → Server Action. `docs/learning/phase-3-day-7.md` §1)
 - [x] Route Handler에서 `request.json()`으로 body를 받아 echo하는 POST API 만들기 — (Phase 2 Day 3: `POST /api/submissions`에서 `request.json()`+zod safeParse, `POST /api/submissions/[id]/letters`에서 `request.formData()` 파일 업로드)
 
 > **Phase 2 Day 3 학습 노트**: `docs/learning/phase-2-day-3.md` — zod 검증(isomorphic·safeParse vs parse·user_id를 body에서 안 받기), 표준 에러 `{error,code}`+403 vs 404 존재 은폐+검사 순서(401→404→409), Storage 버킷·`storage.objects` 정책(경로 첫 폴더=user_id, UPSERT엔 INSERT+UPDATE 둘 다, collages 조건부 공개), **Drizzle 직결의 RLS 우회 함정**, 소유권 코드 검증(getAuthUser=getClaims, getOwnedSubmission), UPSERT 2종(DoNothing vs DoUpdate), 파일 검증 MVP 범위(MIME+크기, magic-byte 미룸), Storage+DB 비원자성·고아 파일, M2(복귀 화이트리스트)/M3(proxy `/api` 제외)/seed 분리.
+>
+> **Phase 3 Day 7 학습 노트(Server Action 최초 도입)**: `docs/learning/phase-3-day-7.md` — 좋아요 토글(S1)·신고(S2)를 **Route Handler가 아닌 Server Action**으로 구현. ① `'use server'`로 URL·fetch·직렬화 없이 함수 호출(RPC) — 단순 mutation은 Server Action, 조회·업로드는 Route Handler(§6.4). ② Server Action 인자는 외부 입력 → 서버에서 zod 재검증. ③ RLS 우회라 user_id/reporter_id를 서버 인증 사용자로 고정(클라 입력 미신뢰). ④ 에러 전달 throw(롤백만, toggleReaction) vs `{ok,code}` 반환(사유별 메시지, createReport — Next.js production throw 마스킹 회피). ⑤ 자기 신고 2겹(서버 `SELF_REPORT` 인가 + 클라 `is_mine` 숨김 UX, 클라 숨김 ≠ 인가). ⑥ `'use server'` + `import 'server-only'` 이중 가드.
 
 ---
 
@@ -946,10 +948,12 @@ const likeMutation = useMutation({
 
 **실습 태스크**
 
-- [ ] 좋아요 버튼을 만들고, 서버 요청 없이 `useState`로 즉시 UI를 바꿔보기
-- [ ] TanStack Query `onMutate`에서 캐시를 수동 업데이트하기
-- [ ] 의도적으로 API를 실패시켜서, `onError`에서 롤백이 잘 되는지 확인
+- [x] 좋아요 버튼을 만들고, 서버 요청 없이 `useState`로 즉시 UI를 바꿔보기 — (Phase 3 Day 7: `useState` 대신 TanStack 캐시 직접 갱신으로 진화. `FeedCard` 하트가 클릭 즉시 ♡→♥ + 카운트 ±1 반영, 서버 응답을 기다리지 않음)
+- [x] TanStack Query `onMutate`에서 캐시를 수동 업데이트하기 — (Phase 3 Day 7: `use-reaction.ts` `onMutate`에서 cancelQueries→스냅샷 백업→`optimisticToggleReaction`로 `setQueryData`. 무한 쿼리 `pages[].items[]`에서 대상 1개만 갱신·나머지 참조 보존)
+- [x] 의도적으로 API를 실패시켜서, `onError`에서 롤백이 잘 되는지 확인 — (Phase 3 Day 7: `toggleReaction` 미인증 시 `throw 'UNAUTHENTICATED'` → `onError`가 `context.previous` 스냅샷으로 롤백. QA T-7)
 - [ ] 네트워크를 느리게 설정(DevTools Throttling)하고 optimistic vs non-optimistic 비교
+
+> **Phase 3 Day 7 학습 노트**: `docs/learning/phase-3-day-7.md` — 반응 토글 optimistic + 신고 Server Action. ① Server Action(`'use server'`) 최초 도입 — 단순 mutation은 함수 호출 RPC(§6.4). ② optimistic update onMutate(cancelQueries→백업→낙관 반영)/onError(스냅샷 롤백)/onSuccess(서버 권위값 정정), **onSettled 전체 invalidate 의도적 미사용**(무한 쿼리 재fetch·signed URL 재서명·스크롤 점프 회피). ③ `useInfiniteQuery` 중첩 캐시 — `pages[].items[]`에서 대상 1개만 새 참조·나머지 원본 참조 보존(순수 함수 `reaction-cache.ts`). ④ 멱등 토글 — INSERT or DELETE(UPDATE 없음)·UNIQUE(user_id, submission_id)·`onConflictDoNothing`·DELETE 무해·토글 후 권위값 재조회로 read-then-write race 흡수. ⑤ RLS 우회 → user_id/reporter_id를 서버 인증 사용자 고정(클라 미신뢰). ⑥ 에러 전달 throw(롤백만) vs `{ok,code}` 반환(사유별 메시지, production throw 마스킹 회피). ⑦ 자기 신고 2겹 — 서버 `SELF_REPORT`(인가) + 클라 `is_mine` 숨김(UX), **클라 숨김 ≠ 인가**. ⑧ `'use server'`+`server-only` 이중 가드. 다음: #52 로그아웃(세션 종료+캐시/draft 정리)·#53 로컬 draft 누수(클라 상태 사용자 경계).
 
 ---
 
