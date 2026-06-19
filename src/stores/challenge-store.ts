@@ -11,6 +11,8 @@ type SlotMeta = {
 
 interface ChallengeStore {
   challengeId: string | null
+  /** 이 draft의 소유자 user id — 계정 전환 시 타 계정 draft 노출 방지 (#53) */
+  ownerId: string | null
   slots: LetterSlot[]
   activeSlotIndex: number | null
   isComplete: boolean
@@ -45,7 +47,9 @@ interface ChallengeStore {
    * BEFORE calling this (read keys from state first).
    */
   resetDraft: () => void
-  /** Full wipe — challengeId, slots, everything. */
+  /** Record the current draft owner (logged-in user id). Persisted for the owner-scope guard. */
+  setOwner: (ownerId: string | null) => void
+  /** Full wipe — challengeId, ownerId, slots, everything. */
   reset: () => void
 }
 
@@ -66,6 +70,7 @@ export const useChallengeStore = create<ChallengeStore>()(
   persist(
     (set, get) => ({
       challengeId: null,
+      ownerId: null,
       slots: [],
       activeSlotIndex: null,
       isComplete: false,
@@ -150,9 +155,12 @@ export const useChallengeStore = create<ChallengeStore>()(
           isComplete: false,
         })),
 
+      setOwner: (ownerId) => set({ ownerId }),
+
       reset: () =>
         set({
           challengeId: null,
+          ownerId: null,
           slots: [],
           activeSlotIndex: null,
           isComplete: false,
@@ -167,6 +175,7 @@ export const useChallengeStore = create<ChallengeStore>()(
        */
       partialize: (state) => ({
         challengeId: state.challengeId,
+        ownerId: state.ownerId,
         slots: state.slots.map(({ index, character, status, imageKey, fileName, fileType, updatedAt }) => ({
           index,
           character,
