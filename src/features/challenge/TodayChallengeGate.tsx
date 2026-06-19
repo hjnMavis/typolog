@@ -1,9 +1,12 @@
 "use client"
 
-import { useEffect, type ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useTodayChallenge } from "@/hooks/use-today-challenge"
+import { useCurrentUser } from "@/hooks/use-current-user"
+import { useChallengeStore } from "@/stores/challenge-store"
+import { clearAllImages } from "@/lib/image/indexed-image-store"
 import { ApiError } from "@/lib/api-client"
 import { Button } from "@/components/ui/button"
 import type { Challenge } from "@/types"
@@ -32,7 +35,40 @@ export function TodayChallengeGate({ challengeId, children }: TodayChallengeGate
     if (isMismatch) router.replace("/")
   }, [isMismatch, router])
 
-  if (isPending || isMismatch) {
+  // draft owner-scope 가드(#53): 저장된 draft가 현재 사용자 것이 아니면(로그아웃 없는 계정
+  // 전환·세션 만료 등) IDB 블롭 + store를 비운 뒤에야 children(수집/미리보기)을 렌더한다.
+  // 같은 사용자면 즉시 통과해 진행 중 draft를 보존한다.
+  const { userId, isResolved } = useCurrentUser()
+  const [guarded, setGuarded] = useState(false)
+  useEffect(() => {
+    if (!isResolved) return
+    let active = true
+    async function guard() {
+      const store = useChallengeStore.getState()
+      // owner가 현재 사용자와 다르면 정리한다. userId가 null이어도(getClaims 실패 등)
+      // ownerId가 남아 있으면 fail-safe로 비운다 — 서버측 인증은 src/proxy.ts가 1차로
+      // 막고(보호 라우트 redirect), 이 가드는 그 위의 보강(defense-in-depth)이다.
+      if (store.ownerId !== userId) {
+        try {
+          await clearAllImages()
+        } catch {
+          // 비필수: 디스크 잔여 블롭은 슬롯이 비워져 화면엔 노출되지 않는다
+        }
+        store.reset()
+        store.setOwner(userId)
+      }
+      if (active) setGuarded(true)
+    }
+    void guard()
+    return () => {
+      active = false
+    }
+  }, [isResolved, userId])
+
+  // `!guarded`는 프라이버시 게이트다 — owner-guard가 store/IDB 정리를 마치기 전에는
+  // children(수집/미리보기)을 마운트하지 않는다. React 효과는 자식이 부모보다 먼저
+  // 실행되므로, 여기서 막지 않으면 정리 전에 자식이 stale draft를 읽는다 (#53).
+  if (isPending || isMismatch || !guarded) {
     return (
       <div className="flex min-h-dvh items-center justify-center p-6" aria-busy="true">
         <p className="text-sm text-muted-foreground">불러오는 중…</p>
