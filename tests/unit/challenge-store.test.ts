@@ -17,6 +17,7 @@ describe("useChallengeStore", () => {
     localStorage.removeItem("typolog-challenge")
     useChallengeStore.setState({
       challengeId: null,
+      ownerId: null,
       slots: [],
       activeSlotIndex: null,
       isComplete: false,
@@ -450,6 +451,43 @@ describe("useChallengeStore", () => {
       expect(raw).not.toContain("imageUrl")
       expect(raw).not.toContain("imageDataUrl")
       expect(raw).not.toContain("blob:")
+    })
+  })
+
+  // ─────────────────────────────────────────────
+  // ownerId — draft owner-scope 가드 (#53)
+  // ─────────────────────────────────────────────
+  describe("ownerId", () => {
+    it("setOwner가 현재 사용자 id를 기록한다", () => {
+      useChallengeStore.getState().setOwner("user-A")
+      expect(useChallengeStore.getState().ownerId).toBe("user-A")
+    })
+
+    it("reset이 ownerId를 null로 비운다 (계정 전환 시 전체 정리)", () => {
+      const store = useChallengeStore.getState()
+      store.setOwner("user-A")
+      store.initSlots(mockChallenge)
+      store.fillSlot(0, META_0, "blob:url")
+      store.reset()
+
+      expect(useChallengeStore.getState().ownerId).toBeNull()
+      expect(useChallengeStore.getState().slots).toEqual([])
+    })
+
+    it("ownerId가 localStorage에 영속된다 (다음 진입 시 소유자 비교용)", () => {
+      useChallengeStore.getState().setOwner("user-A")
+      useChallengeStore.getState().initSlots(mockChallenge)
+
+      const persisted = JSON.parse(localStorage.getItem("typolog-challenge")!)
+      expect(persisted.state.ownerId).toBe("user-A")
+    })
+
+    it("다른 사용자면 ownerId 불일치를 감지할 수 있다 (가드 판단 근거)", () => {
+      useChallengeStore.getState().setOwner("user-A")
+      const ownerId = useChallengeStore.getState().ownerId
+      // TodayChallengeGate는 ownerId !== 현재 userId 일 때 reset+IDB clear 한다
+      expect(ownerId !== "user-B").toBe(true)
+      expect(ownerId !== "user-A").toBe(false)
     })
   })
 })

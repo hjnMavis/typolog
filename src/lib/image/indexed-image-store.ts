@@ -145,6 +145,32 @@ export async function deleteImageBlob(key: string): Promise<void> {
 }
 
 /**
+ * Clear the entire image store (every draft Blob on this device).
+ * Used on logout / account switch so one user's cropped photos never
+ * leak into another user's session (#53). No-ops on unsupported envs.
+ */
+export async function clearAllImages(): Promise<void> {
+  if (!isSupported()) return
+
+  const db = await openDb().catch(() => null)
+  if (!db) return
+
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite")
+    const store = tx.objectStore(STORE_NAME)
+    store.clear()
+
+    tx.oncomplete = () => resolve()
+    tx.onerror = () =>
+      reject(
+        new Error(
+          `이미지 전체 삭제 트랜잭션 오류: ${tx.error?.message ?? "알 수 없는 오류"}`
+        )
+      )
+  })
+}
+
+/**
  * Delete multiple Blobs in a single readwrite transaction.
  * Keys that don't exist are silently skipped.
  */
