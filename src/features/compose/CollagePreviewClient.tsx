@@ -468,6 +468,13 @@ function CollagePreviewView({ challenge }: CollagePreviewViewProps) {
                 className="mx-auto mt-1 w-28 rounded-lg ring-1 ring-black/10"
               />
             )}
+            {/* #51: 제출 완료 후 막다른 길 방지 — 피드로 가는 동선 제공 */}
+            <Link
+              href="/feed/today"
+              className={cn(buttonVariants({ size: "lg" }), "mt-2 w-full")}
+            >
+              피드 보러가기
+            </Link>
           </div>
         ) : (
           <>
