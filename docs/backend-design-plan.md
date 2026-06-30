@@ -1045,6 +1045,20 @@ type ApiError = {
 | (부수) 파일 예산 | **단위당 5~6파일 완화 승인**(사용자, 2026-06-18). **마이그레이션 0**(reactions/reports 테이블·RLS·GRANT는 Day 1 기존, 쓰기 코드만 추가) |
 | (후속) 백로그 | Day 7 E2E·논의 도출: 로그아웃+로컬 draft 정리 **#52** / 계정전환 draft 누수 버그 **#53**(Day 7 직후 함께 처리) / 제출 업로드 병렬화 **#50**(Day 10·백로그) / 제출 후 피드 이동 UX **#51**(Day 8). 실기기·오프라인 롤백 E2E는 **#40**(배포 전) |
 
+### Day 8 확정 결정 (게이트 A 통과, 2026-06-19) — 공유 + OG
+
+| 항목 | 결정 |
+|------|------|
+| (a) 오너십 분담 | **Backend = 공유 데이터 단일 헬퍼(`getSharedSubmission`) + A8 `GET /api/og/[id]`(OG 이미지) / Frontend = `/s/[id]` 화면·`generateMetadata`·공유 UI·CTA·#51.** 가시성 판정을 헬퍼 한 곳에 모아 페이지·OG가 공유 → "한쪽은 보이고 한쪽은 막히는" 불일치 누수 차단 |
+| (b) 비인증 데이터·서명 | `/s/[id]`·OG 모두 `getSharedSubmission`로 Drizzle 직결 + 가시성 코드 강제(`status='completed' AND is_public=true`), 그 외(타인 비공개·draft·hidden·미존재·잘못된 UUID) 전부 404 존재 은폐(§7.4). 콜라주는 **anon 서명**(쿠키 인식 createClient→비인증=anon role, `collages_read_anon` §5.2) + `SIGNED_URL_TTL.SHARE`(24h). service key 미사용. 요청 단위 중복 제거 `React cache()` |
+| (c) OG 생성 | **next/og `ImageResponse`(무설치) + Node 런타임.** 콜라주 바이트 fetch→**data-URI 임베드**(만료 signed URL 미잔류), 미존재 404, `Cache-Control: max-age=3600, s-maxage=86400, stale-while-revalidate`. 방어(Reviewer): content-type `image/*` 화이트리스트 + 4MB 상한 |
+| (d) OG 한글 처리 | **이미지엔 한글 미렌더**(Satori 기본 폰트 한글 미지원=두부) — 콜라주 + 라틴 "Typolog"만. 한글 문장·닉네임은 메타태그(og:title/description)로 플랫폼이 네이티브 렌더 |
+| (e) 메타데이터 | `generateMetadata`의 openGraph/twitter, `metadataBase`=`NEXT_PUBLIC_APP_URL`(localhost 폴백), og:image **절대 URL**=`/api/og/[id]`. 비공개/미존재 시 noindex + og:image 미포함 |
+| (f) 공유 UX·CTA | Web Share API(`navigator.share`) + 미지원 시 클립보드 폴백 + **인라인 "복사됨" 피드백**(토스트 미설치). 지원 감지 `useSyncExternalStore`(hydration-safe). "나도 만들기" CTA → `/`(proxy가 비로그인 `/login` 분기). #51 제출 완료→"피드 보러가기"(`/feed/today`) |
+| (g) 작업 단위 | **2단위 스택 PR** — U1 `phase3-day8-og-data`(Backend: 헬퍼 + OG 라우트) → U2 `phase3-day8-share-page`(Frontend: 화면·공유·CTA·#51). base=origin/main 스택, U1→U2 순차 머지 |
+| (부수) 파일 예산 | 전 유닛 완화 승인(사용자, 2026-06-19). **마이그레이션·정책 0**(proxy 공개 경계·anon 정책·SHARE TTL 전부 Day 1~6 기존, 화면·OG만 추가). `SharedSubmission` 타입은 헬퍼에 co-locate(`types/api.ts` 미변경 — 서버 직접 호출이라 와이어 타입 아님) |
+| (후속) 백로그·E2E 도출 | 제출 lifecycle 정합성(완성 후 재제출 no-op·상태 복원·공개 전환) **#60** / 전역 네비게이션 **#61** / 페이지 IA 논의(+계정 표시) **#62** / 피드 카드→공유 진입 **#63**. 카톡·X 실제 미리보기·모바일 Web Share는 배포·실기기 시점 |
+
 ### Phase 2 구현 순서 (Day 1~5 + Day 4.5)
 
 ```
