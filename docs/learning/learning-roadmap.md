@@ -415,7 +415,7 @@ const { data } = await supabase.storage
 |------|----------|
 | 아바타 이미지 (`avatars` 버킷) | Public URL |
 | 피드에서 공개 콜라주 표시 | Signed URL (1시간) |
-| 공유 페이지에서 콜라주 표시 | Signed URL (24시간) |
+| 공유 페이지에서 콜라주 표시 | Signed URL (24시간) | ✅ Phase 3 Day 8
 | 내 글자 조각 편집 중 미리보기 | Signed URL (1시간) |
 
 **실습 태스크**
@@ -424,6 +424,7 @@ const { data } = await supabase.storage
 - [x] `createSignedUrl()`로 임시 URL 생성 후 접근 성공 확인 — (Phase 2 Day 4: `src/lib/storage/signed-url.ts` `createSignedUrl(supabase, bucket, path, ttl)` 헬퍼 + `SIGNED_URL_TTL.EDIT(1h)`/`SHARE(24h)` 프리셋. A3 `GET /api/submissions/[id]`에서 콜라주·본인 글자 조각 경로를 읽기 시점에 서명해 내려줌)
 - [ ] 만료 시간을 10초로 설정하고, 10초 후 접근 실패 확인
 - [x] Public 버킷 vs Private 버킷의 URL 차이를 비교해보기 — (Phase 2 Day 4: private 버킷이라 DB엔 경로만 저장하고 읽기 시점에 서명. 요청자 JWT가 실린 server client로 서명해 storage.objects RLS(§5)가 적용 → 무권한 경로는 null로 URL이 새지 않음. admin client 서명 금지)
+- [x] 비인증(anon) 방문자에게 공유용 24h Signed URL을 발급해보기 — (Phase 3 Day 8: 공유 페이지 `/s/[id]`가 `getSharedSubmission`에서 쿠키 인식 `createClient`로 서명 → 비인증 방문자는 **anon role** → `collages_read_anon`(§5.2)이 공개 완성 콜라주만 서명 허용(최소 권한·service key 미사용), `SIGNED_URL_TTL.SHARE`(24h). `docs/learning/phase-3-day-8.md` §3)
 
 > **Phase 2 Day 4 학습 노트**: `docs/learning/phase-2-day-4.md` — 제출 완성 API 3종(A3 GET 상세+signed URL / A4 PATCH status·visibility / A6 collage 업로드). ① Signed URL: DB엔 경로만·읽기 시점 서명·요청자 JWT로 서명해 RLS 적용(무권한 경로 null)·TTL 프리셋(본인 1h/공유 24h)·admin 서명 금지. ② 상태 전이=조건부 UPDATE(UPSERT 아님): zod `z.literal('completed')`로 역전 차단, 완성 전제검증(slot count==letters.length AND collage!=null), WHERE 소유권+non-hidden 가드(TOCTOU), count==length 정당성(범위검증+UNIQUE 불변식), 전제검증·UPDATE 비원자성 한계(Reviewer Medium). ③ 간접 소유권 재사용(getOwnedSubmission 3라우트 공유)+Storage 정책 2층 방어, 404 존재은폐·검사순서(401→404→409), server-only 가드, serialize.ts 단일 투영. 다음 Day 4.5(Zustand↔서버 동기화+TanStack Query) 다리 포함.
 
@@ -954,6 +955,8 @@ const likeMutation = useMutation({
 - [ ] 네트워크를 느리게 설정(DevTools Throttling)하고 optimistic vs non-optimistic 비교
 
 > **Phase 3 Day 7 학습 노트**: `docs/learning/phase-3-day-7.md` — 반응 토글 optimistic + 신고 Server Action. ① Server Action(`'use server'`) 최초 도입 — 단순 mutation은 함수 호출 RPC(§6.4). ② optimistic update onMutate(cancelQueries→백업→낙관 반영)/onError(스냅샷 롤백)/onSuccess(서버 권위값 정정), **onSettled 전체 invalidate 의도적 미사용**(무한 쿼리 재fetch·signed URL 재서명·스크롤 점프 회피). ③ `useInfiniteQuery` 중첩 캐시 — `pages[].items[]`에서 대상 1개만 새 참조·나머지 원본 참조 보존(순수 함수 `reaction-cache.ts`). ④ 멱등 토글 — INSERT or DELETE(UPDATE 없음)·UNIQUE(user_id, submission_id)·`onConflictDoNothing`·DELETE 무해·토글 후 권위값 재조회로 read-then-write race 흡수. ⑤ RLS 우회 → user_id/reporter_id를 서버 인증 사용자 고정(클라 미신뢰). ⑥ 에러 전달 throw(롤백만) vs `{ok,code}` 반환(사유별 메시지, production throw 마스킹 회피). ⑦ 자기 신고 2겹 — 서버 `SELF_REPORT`(인가) + 클라 `is_mine` 숨김(UX), **클라 숨김 ≠ 인가**. ⑧ `'use server'`+`server-only` 이중 가드. 다음: #52 로그아웃(세션 종료+캐시/draft 정리)·#53 로컬 draft 누수(클라 상태 사용자 경계).
+>
+> **Phase 3 Day 8 학습 노트(비인증 공유)**: `docs/learning/phase-3-day-8.md` — `/s/[id]` 공유 페이지 + 동적 OG 이미지 + Web Share. ① 존재 은폐(404) — 비공개·미존재·draft·잘못된 id 동일 404, enumeration 차단(부수 효과로 #60 제출 lifecycle 버그 포착). ② 단일 가시성 소스 `getSharedSubmission` — 페이지·OG·generateMetadata가 같은 함수 공유로 불일치 원천 차단, Drizzle RLS 우회라 가시성 술어를 WHERE에 코드 강제. ③ anon 서명 — 쿠키 인식 client가 비인증 방문자를 anon role로 → `collages_read_anon`이 공개 완성 콜라주만 서명(최소 권한·service key 미사용)·`SHARE` TTL 24h. ④ `next/og`(Satori) 한글 미지원(두부) → 이미지엔 콜라주+라틴 "Typolog", 한글은 메타태그로 플랫폼 네이티브 렌더. ⑤ data-URI 임베드 — 콜라주 바이트 fetch해 박아 만료 signed URL을 결과물에 안 남김 + content-type 화이트리스트·4MB 상한·Cache-Control(SWR). ⑥ React `cache()` — generateMetadata·본문 같은 요청 같은 id 2회 호출 → DB·서명 1회. ⑦ OG 메타데이터 — metadataBase로 og:image 절대 URL, null 시 og:image 미포함+noindex. ⑧ `useSyncExternalStore`(서버 스냅샷 false) hydration-safe Web Share 감지 + 클립보드 폴백·인라인 피드백·AbortError 무시. 다음: Day 9 마이페이지(`updateSubmissionVisibility`=가시성 쓰기·`updateProfile`=아바타 public 버킷).
 
 ---
 
@@ -1346,6 +1349,17 @@ Phase 5+ (프로덕션 운영)
 - [x] queryKey에 cursor를 넣지 않고 pageParam으로 흘리는 이유, `getNextPageParam: next_cursor ?? undefined` 정지 조건을 설명할 수 있다
 - [x] IntersectionObserver 센티널의 enabled 가드(`hasNextPage && !isFetchingNextPage`)·useCallback 안정화·cleanup을 설명할 수 있다
 - [x] 서버가 확정한 `reaction_count`/`user_reacted` 계약이 Day 7 optimistic 토글의 발판이 됨을 설명할 수 있다
+
+#### Phase 3 Day 8에서 추가로 익힌 것 (비인증 공유 — `/s/[id]` + OG 이미지 + Web Share)
+- [x] 비공개·미존재·draft·잘못된 id를 전부 동일 404로 처리하는 **존재 은폐**의 이유(enumeration 차단)와, 그 부수 효과로 #60 제출 lifecycle 버그를 잡아낸 사례를 설명할 수 있다
+- [x] 가시성 판정을 `getSharedSubmission` **단일 소스**에 모아 페이지·OG·generateMetadata가 같은 진실을 보게 해 "한쪽은 보이고 한쪽은 막히는" 불일치를 원천 차단하는 이유를 설명할 수 있다
+- [x] Drizzle 직결 RLS 우회 환경에서 가시성 술어(`completed`+`is_public`)를 코드(WHERE)가 직접 강제해야 함을 설명할 수 있다
+- [x] 비인증 방문자가 **anon role**이 되어 `collages_read_anon`로 공개 완성 콜라주만 서명되는 최소 권한(service key 미사용) 흐름과 `SHARE`(24h) TTL 선택 이유를 설명할 수 있다
+- [x] `next/og` `ImageResponse`(Satori)의 **한글 미지원(두부)** 함정과 우회(이미지엔 콜라주+라틴 브랜딩, 한글 문장·닉네임은 메타태그로 플랫폼 네이티브 렌더)를 설명할 수 있다
+- [x] 콜라주 바이트를 fetch해 **data-URI로 임베드**해 만료 signed URL을 결과물에 안 남기는 이유, content-type 화이트리스트·4MB 상한·Cache-Control(s-maxage·SWR)을 설명할 수 있다
+- [x] React `cache()`로 generateMetadata·본문이 같은 요청 같은 id로 두 번 호출돼도 DB·서명을 1회로 메모이즈(요청 단위)하는 이유를 설명할 수 있다
+- [x] `metadataBase`로 og:image **절대 URL**을 자동화하는 이유와, 비공개/미존재 시 og:image 미포함 + noindex를 설명할 수 있다
+- [x] `useSyncExternalStore`(서버 스냅샷 false)로 hydration-safe하게 Web Share 지원을 감지하는 이유와, 클립보드 폴백·인라인 피드백·AbortError 조용한 무시를 설명할 수 있다
 
 ### Phase 4 체크리스트
 - [ ] PostHog에서 이벤트를 보내고 대시보드에서 확인할 수 있다
