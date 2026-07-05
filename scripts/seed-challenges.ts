@@ -7,6 +7,8 @@
 // 06-04까지는 Phase 1 mock(src/lib/constants/challenges.ts)과 1:1 정합,
 // 06-05 이후(오늘 2026-06-09 포함 ~06-30까지)는 작성자가 lines를 직접 지정해 추가한다.
 // Day 4: /today 404 방지를 위해 월말까지 넉넉히 연장 (게이트 A Day4-(f)).
+import { readFileSync } from 'node:fs';
+import { parseEnv } from 'node:util';
 import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
@@ -14,6 +16,26 @@ import { challenges, type NewChallenge } from '../src/db/schema';
 import { MOCK_CHALLENGES } from '../src/lib/constants/challenges';
 import { parseSentence } from '../src/lib/utils/sentence-parser';
 import { challengeContentSchema } from '../src/lib/validations/challenge';
+
+// .env.local 로더 — Node의 process.loadEnvFile는 '탭 들여쓰기'된 키를 누락한다(Next/dotenv 로더는
+// 관대해 dev 서버는 정상 연결됨). 그래서 BOM·CR 제거 + 각 줄 앞 공백 트림으로 정규화한 뒤 parseEnv로
+// 읽는다(공백/탭 들여쓰기·CRLF 모두 흡수). 이미 설정된 값(셸 export)은 덮어쓰지 않는다.
+function loadEnvLocal(path = '.env.local'): void {
+  let raw: string;
+  try {
+    raw = readFileSync(path, 'utf8');
+  } catch {
+    return; // 파일이 없으면 스킵 — 아래 DATABASE_URL 체크가 안내 메시지를 던진다.
+  }
+  const noBom = raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw;
+  const normalized = noBom
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^\s+/, ''))
+    .join('\n');
+  for (const [key, value] of Object.entries(parseEnv(normalized))) {
+    if (process.env[key] === undefined) process.env[key] = String(value);
+  }
+}
 
 // 작성자 지정 lines를 단일 소스로 sentence/letters를 파생 (mock의 challenge() 빌더와 동일).
 function fromLines(lines: string[], activeDate: string): NewChallenge {
@@ -61,6 +83,21 @@ const EXTRA_ROWS: NewChallenge[] = [
   fromLines(['웃는 하루'], '2026-06-28'),
   fromLines(['마음 한 켠'], '2026-06-29'),
   fromLines(['잘 지냈어'], '2026-06-30'),
+  // 2026-07 연장 — /today 404 방지(월이 넘어가면 seed 재실행 필요). Day 9 E2E용 마진.
+  fromLines(['오늘 여기'], '2026-07-01'),
+  fromLines(['좋은 아침'], '2026-07-02'),
+  fromLines(['여름 하루'], '2026-07-03'),
+  fromLines(['천천히', '가요'], '2026-07-04'),
+  fromLines(['맑은 바람'], '2026-07-05'),
+  fromLines(['오늘 한 컷'], '2026-07-06'),
+  fromLines(['가벼운 발'], '2026-07-07'),
+  fromLines(['시원한 물'], '2026-07-08'),
+  fromLines(['조용한 낮'], '2026-07-09'),
+  fromLines(['반짝이는 밤'], '2026-07-10'),
+  fromLines(['깊은 숨'], '2026-07-11'),
+  fromLines(['느긋한 오후'], '2026-07-12'),
+  fromLines(['작은 쉼'], '2026-07-13'),
+  fromLines(['고마운 날'], '2026-07-14'),
 ];
 
 async function main() {
@@ -71,7 +108,7 @@ async function main() {
     challengeContentSchema.parse(row);
   }
 
-  process.loadEnvFile('.env.local');
+  loadEnvLocal();
   const url = process.env.DATABASE_URL;
   if (!url) {
     throw new Error('DATABASE_URL is not set. Add the Session pooler URI (5432) to .env.local.');
