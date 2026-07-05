@@ -1,10 +1,12 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { useMySubmissions } from '@/hooks/use-my-submissions';
 import { useLogout } from '@/hooks/use-logout';
 import { Button } from '@/components/ui/button';
 import { MySubmissionCard } from './MySubmissionCard';
+import { ProfileEditSheet } from './ProfileEditSheet';
 
 interface MyClientProps {
   /** 서버에서 주입한 현재 사용자 닉네임 — 계정 표시용(프로필 수정 UI는 U3에서 추가). */
@@ -22,6 +24,8 @@ function getInitial(nickname: string): string {
 export function MyClient({ initialNickname, avatarUrl }: MyClientProps) {
   const { logout, isPending: isLoggingOut } = useLogout();
   const { data, isPending, isError, refetch, isRefetching } = useMySubmissions();
+  // 서버 prop은 갱신되지 않으므로 닉네임을 state로 들고, 프로필 수정 성공 시 즉시 반영한다.
+  const [nickname, setNickname] = useState(initialNickname);
 
   return (
     // pb-24: 하단 탭 네비(U4)가 가리지 않도록 여유 — 탭 도입 전에도 무해.
@@ -33,21 +37,21 @@ export function MyClient({ initialNickname, avatarUrl }: MyClientProps) {
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={avatarUrl}
-              alt={`${initialNickname} 프로필`}
+              alt={`${nickname} 프로필`}
               className="h-full w-full object-cover"
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center bg-muted-foreground/20">
               <span className="text-base font-semibold text-muted-foreground">
-                {getInitial(initialNickname)}
+                {getInitial(nickname)}
               </span>
             </div>
           )}
         </div>
 
         <div className="min-w-0 flex-1">
-          <p className="truncate text-lg font-bold">{initialNickname}</p>
-          <p className="text-xs text-muted-foreground">내 콜라주</p>
+          <p className="truncate text-lg font-bold">{nickname}</p>
+          <ProfileEditSheet currentNickname={nickname} onUpdated={setNickname} />
         </div>
 
         <button
