@@ -1,11 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { updateSession } from '@/lib/supabase/proxy';
 
-// 보호 라우트 (게이트 A 결정 c): `/`, `/challenge/*`, `/feed/*`, `/admin/*`
+// 보호 라우트 (게이트 A 결정 c · Day 9 `/my` 추가): `/`, `/challenge/*`, `/feed/*`, `/my`, `/admin/*`
 // 그 외(`/login`, `/s/*`, `/u/*`, `/api/auth/callback`, `/api/og/*`, `/api/challenges/today`)는 공개.
 // M3 (게이트 A Day3-(g)): API 라우트는 자체 인증(getAuthUser)으로 401을 책임지고
 // proxy는 페이지 redirect만 담당하므로 matcher에서 `/api/*`를 제외한다(중복 세션 갱신 제거).
-const PROTECTED_PREFIXES = ['/challenge', '/feed', '/admin'];
+const PROTECTED_PREFIXES = ['/challenge', '/feed', '/my', '/admin'];
 
 function isProtectedPath(pathname: string): boolean {
   if (pathname === '/') return true;
