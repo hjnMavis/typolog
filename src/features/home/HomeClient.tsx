@@ -2,7 +2,6 @@
 
 import Link from "next/link"
 import { useTodayChallenge } from "@/hooks/use-today-challenge"
-import { useLogout } from "@/hooks/use-logout"
 import { ApiError } from "@/lib/api-client"
 import { buttonVariants, Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -10,22 +9,10 @@ import { cn } from "@/lib/utils"
 /**
  * 홈(오늘의 챌린지) — Phase 1 mock에서 A1 GET /api/challenges/today로 전환 (Day 4.5).
  * 데이터는 TanStack Query(['challenge','today'])가 들고, 이 컴포넌트는 상태별 UI만 그린다.
+ * 로그아웃은 Day 9 IA 결정으로 마이페이지(/my)로 이전됐다(홈 임시 버튼 제거, #52·#62).
  */
 export function HomeClient() {
   const { data: challenge, isPending, isError, error, refetch, isRefetching } = useTodayChallenge()
-  const { logout, isPending: isLoggingOut } = useLogout()
-
-  // 임시 로그아웃 진입(#52) — 정식 위치는 Day 9 마이페이지. 잠김 방지를 위해 성공·에러 상태 모두 노출.
-  const logoutButton = (
-    <button
-      type="button"
-      onClick={() => void logout()}
-      disabled={isLoggingOut}
-      className="text-sm text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground disabled:opacity-60"
-    >
-      {isLoggingOut ? "로그아웃 중…" : "로그아웃"}
-    </button>
-  )
 
   // 로딩 — 성공 상태와 같은 골격의 스켈레톤 (레이아웃 점프 방지)
   if (isPending) {
@@ -70,7 +57,6 @@ export function HomeClient() {
             {isRefetching ? "다시 시도 중…" : "다시 시도"}
           </Button>
         )}
-        <div className="mt-6">{logoutButton}</div>
       </div>
     )
   }
@@ -105,8 +91,6 @@ export function HomeClient() {
         >
           시작하기
         </Link>
-
-        {logoutButton}
       </div>
     </div>
   )
