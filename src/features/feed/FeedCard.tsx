@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useToggleReaction } from '@/hooks/use-reaction';
 import { ReportDialog } from './ReportDialog';
 import type { ApiFeedItem } from '@/types/api';
@@ -21,8 +22,12 @@ export function FeedCard({ item, challengeId }: FeedCardProps) {
 
   return (
     <article className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-      {/* 콜라주 이미지 영역 */}
-      <div className="relative aspect-square w-full bg-muted">
+      {/* 콜라주 이미지 영역 — 탭하면 공유 페이지(/s/[id])로 (#63 발견→크게보기→공유 루프) */}
+      <Link
+        href={`/s/${submission.id}`}
+        className="relative block aspect-square w-full bg-muted"
+        aria-label={`${profile.nickname}의 콜라주 자세히 보기`}
+      >
         {collage_url ? (
           // next.config에 remotePatterns 미설정 → next/image 사용 불가 → <img> 사용
           // eslint-disable-next-line @next/next/no-img-element
@@ -35,14 +40,14 @@ export function FeedCard({ item, challengeId }: FeedCardProps) {
           // collage_url null 폴백: 닉네임 이니셜을 중앙에 표시
           <div
             className="flex h-full w-full items-center justify-center"
-            aria-label={`${profile.nickname}의 콜라주 (미리보기 없음)`}
+            aria-hidden="true"
           >
             <span className="text-5xl font-bold text-muted-foreground/40">
               {getInitial(profile.nickname)}
             </span>
           </div>
         )}
-      </div>
+      </Link>
 
       {/* 카드 하단: 프로필 + 반응 */}
       <div className="flex items-center justify-between px-4 py-3">

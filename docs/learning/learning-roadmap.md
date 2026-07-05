@@ -944,8 +944,8 @@ const likeMutation = useMutation({
 
 | 기능 | 왜 Optimistic Update가 필요한가 |
 |------|-------------------------------|
-| 좋아요 토글 | 빠른 피드백. 하트가 즉시 반응해야 자연스러움 |
-| 공개/비공개 토글 | 토글 스위치가 즉시 바뀌어야 함 |
+| 좋아요 토글 | 빠른 피드백. 하트가 즉시 반응해야 자연스러움 (Day 7 — 값 정정, invalidate 안 함) |
+| 공개/비공개 토글 | 토글 배지가 즉시 바뀌어야 함 (Day 9 — `/my`는 값 정정 + `feed`는 멤버십 변화라 invalidate) |
 
 **실습 태스크**
 
@@ -957,6 +957,8 @@ const likeMutation = useMutation({
 > **Phase 3 Day 7 학습 노트**: `docs/learning/phase-3-day-7.md` — 반응 토글 optimistic + 신고 Server Action. ① Server Action(`'use server'`) 최초 도입 — 단순 mutation은 함수 호출 RPC(§6.4). ② optimistic update onMutate(cancelQueries→백업→낙관 반영)/onError(스냅샷 롤백)/onSuccess(서버 권위값 정정), **onSettled 전체 invalidate 의도적 미사용**(무한 쿼리 재fetch·signed URL 재서명·스크롤 점프 회피). ③ `useInfiniteQuery` 중첩 캐시 — `pages[].items[]`에서 대상 1개만 새 참조·나머지 원본 참조 보존(순수 함수 `reaction-cache.ts`). ④ 멱등 토글 — INSERT or DELETE(UPDATE 없음)·UNIQUE(user_id, submission_id)·`onConflictDoNothing`·DELETE 무해·토글 후 권위값 재조회로 read-then-write race 흡수. ⑤ RLS 우회 → user_id/reporter_id를 서버 인증 사용자 고정(클라 미신뢰). ⑥ 에러 전달 throw(롤백만) vs `{ok,code}` 반환(사유별 메시지, production throw 마스킹 회피). ⑦ 자기 신고 2겹 — 서버 `SELF_REPORT`(인가) + 클라 `is_mine` 숨김(UX), **클라 숨김 ≠ 인가**. ⑧ `'use server'`+`server-only` 이중 가드. 다음: #52 로그아웃(세션 종료+캐시/draft 정리)·#53 로컬 draft 누수(클라 상태 사용자 경계).
 >
 > **Phase 3 Day 8 학습 노트(비인증 공유)**: `docs/learning/phase-3-day-8.md` — `/s/[id]` 공유 페이지 + 동적 OG 이미지 + Web Share. ① 존재 은폐(404) — 비공개·미존재·draft·잘못된 id 동일 404, enumeration 차단(부수 효과로 #60 제출 lifecycle 버그 포착). ② 단일 가시성 소스 `getSharedSubmission` — 페이지·OG·generateMetadata가 같은 함수 공유로 불일치 원천 차단, Drizzle RLS 우회라 가시성 술어를 WHERE에 코드 강제. ③ anon 서명 — 쿠키 인식 client가 비인증 방문자를 anon role로 → `collages_read_anon`이 공개 완성 콜라주만 서명(최소 권한·service key 미사용)·`SHARE` TTL 24h. ④ `next/og`(Satori) 한글 미지원(두부) → 이미지엔 콜라주+라틴 "Typolog", 한글은 메타태그로 플랫폼 네이티브 렌더. ⑤ data-URI 임베드 — 콜라주 바이트 fetch해 박아 만료 signed URL을 결과물에 안 남김 + content-type 화이트리스트·4MB 상한·Cache-Control(SWR). ⑥ React `cache()` — generateMetadata·본문 같은 요청 같은 id 2회 호출 → DB·서명 1회. ⑦ OG 메타데이터 — metadataBase로 og:image 절대 URL, null 시 og:image 미포함+noindex. ⑧ `useSyncExternalStore`(서버 스냅샷 false) hydration-safe Web Share 감지 + 클립보드 폴백·인라인 피드백·AbortError 무시. 다음: Day 9 마이페이지(`updateSubmissionVisibility`=가시성 쓰기·`updateProfile`=아바타 public 버킷).
+>
+> **Phase 3 Day 9 학습 노트(마이페이지·프로필)**: `docs/learning/phase-3-day-9.md` — `/my` 갤러리 + 공개 토글(S4) + 닉네임 수정(S3) + 하단 탭. ① **낙관적 업데이트의 두 갈래** — 같은 토글이 `/my`엔 **값 변화**(setQueryData 정정), `feed`엔 **멤버십 변화**(`['feed']` invalidate). 판단 기준 = "목록의 구성원 자격이 바뀌나, 든 구성원의 값만 바뀌나"(Day 7 좋아요=값 정정·invalidate 안 함과 대비). 순수 함수 `setSubmissionVisibility`(평탄 items[], 참조 보존, `visibility-cache.test.ts` `toBe` 검증). ② **`is_public` 쓰기 쪽** — Day 8이 읽던 단일 가시성 소스를 Day 9가 씀 → 비공개 토글 즉시 `/s`·OG 404(추가 코드 0). #60 (B) 완성=확정·공개여부만. ③ **TOCTOU 조건부 UPDATE** — read 검사(NOT_FOUND/HIDDEN/NOT_COMPLETED) 후 UPDATE WHERE에 소유권+completed+non-hidden 재확인(0행→NOT_FOUND, A4 동일·RLS §3.3). ④ **throw vs `{ok,code}` 실전** — S4=throw(롤백만) / S3=구조화 반환(Sheet 사유별 메시지, production 마스킹 회피). ⑤ **본인 서명 vs anon 서명** — `/api/me/submissions`는 본인 JWT server client로 서명 → 비공개 콜라주도 보임(Day 8 anon 공개분 대비)·인증 필수·본인 필터·N+1 회피. ⑥ **유니코드 정제** — zod `transform().pipe()`로 정제(`\p{Cc}\p{Cf}<>` 제거) 먼저→길이 검증 나중, `"<<<"`→빈문자열→min 위반, 클라·서버 공유 스키마. ⑦ **allowlist 탭 island** — `usePathname`으로 3경로만 허용(기본 숨김=누락 안전), root layout `'use client'` island 1개. ⑧ **존재 은폐의 경계** — 타인 자원=NOT_FOUND 통일, 본인 자원 상태 통지는 위반 아님 + throw 마스킹이 UI 노출 재차단. (디버깅) env 탭 들여쓰기 조용한 누락(시드만 실패)·"Sheet 안 닫힘"=DB 왕복 중 관찰 착시. 다음: Day 10 통합 검증(전체 플로우·크로스 유저 가시성 매트릭스·invalidation map·성능).
 
 ---
 

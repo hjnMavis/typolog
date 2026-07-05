@@ -59,7 +59,7 @@ export function FeedClient() {
   // ─── 챌린지 로딩 상태 ───
   if (challengePending) {
     return (
-      <div className="px-4 py-6">
+      <div className="px-4 pb-24 pt-6">
         <div className="mb-4 h-5 w-32 animate-pulse rounded bg-muted" aria-hidden="true" />
         <div className="grid grid-cols-2 gap-3">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -91,7 +91,7 @@ export function FeedClient() {
   // ─── 피드 로딩 상태 (챌린지는 있으나 피드 첫 로드 중) ───
   if (feedPending) {
     return (
-      <div className="px-4 py-6">
+      <div className="px-4 pb-24 pt-6">
         <h1 className="mb-4 text-base font-semibold text-foreground">오늘의 피드</h1>
         <div className="grid grid-cols-2 gap-3" aria-busy="true" aria-label="피드 로딩 중">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -146,7 +146,7 @@ export function FeedClient() {
 
   // ─── 성공: 피드 목록 ───
   return (
-    <div className="px-4 py-6">
+    <div className="px-4 pb-24 pt-6">
       <h1 className="mb-4 text-base font-semibold text-foreground">오늘의 피드</h1>
 
       {/* 2열 그리드 */}

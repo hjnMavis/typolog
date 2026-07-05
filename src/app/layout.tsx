@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
+import { BottomTabNav } from "@/features/nav/BottomTabNav";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,6 +31,8 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <Providers>{children}</Providers>
+        {/* 하단 탭 네비 — 경로 인식 client island. 인증 앱 화면(홈·피드·마이)에서만 표시. */}
+        <BottomTabNav />
       </body>
     </html>
   );
