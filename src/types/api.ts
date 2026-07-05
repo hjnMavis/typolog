@@ -100,3 +100,19 @@ export type ApiFeedResponse = {
   items: ApiFeedItem[];
   next_cursor: string | null; // base64url 커서, 마지막 페이지면 null
 };
+
+// GET /api/me/submissions — 마이페이지(/my) 내 제출 목록 (§9 Day 9)
+
+// 내 제출 1개 항목 — 본인 완성작(공개+비공개). 프로필은 본인이라 생략하고,
+// 어떤 문장이었는지 표시하기 위해 challenge(문장)를 동봉한다. is_mine은 항상 참이라 불필요.
+export type ApiMySubmission = {
+  submission: ApiSubmission; // is_public으로 공개/비공개 배지·토글 (status는 항상 'completed')
+  challenge: { id: string; sentence: string };
+  collage_url: string | null; // signed URL(1h) — 본인 client 서명이라 비공개도 서명됨, 실패 시 null
+  reaction_count: number;
+};
+
+// 내 제출 목록 응답 — 챌린지당 1개라 수가 작아 커서 없이 전량(상한 100) 반환
+export type ApiMySubmissionsResponse = {
+  items: ApiMySubmission[];
+};
