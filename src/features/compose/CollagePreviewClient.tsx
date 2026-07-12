@@ -7,6 +7,7 @@ import { getImageBlob } from "@/lib/image/indexed-image-store"
 import { loadImage } from "@/lib/image/crop-image"
 import { TodayChallengeGate } from "@/features/challenge/TodayChallengeGate"
 import { useSubmissionDetail, useSubmitCollage } from "@/hooks/use-submission"
+import { useMySubmissions } from "@/hooks/use-my-submissions"
 import type { LetterSource, SubmitProgress } from "./submit-collage"
 import { getPieceLayout, canPreview } from "./collage-layout"
 import { canExport, buildCollageFilename, downloadCollage, shouldUseIosFallbackWithTouch } from "./export-collage"
@@ -94,6 +95,12 @@ function CollagePreviewView({ challenge }: CollagePreviewViewProps) {
   const submitMutation = useSubmitCollage()
   // 제출 완료 후 A3 상세를 조회해 서버가 내려준 콜라주 signed URL로 완료 상태를 확인한다
   const { data: submittedDetail } = useSubmissionDetail(submittedId)
+  // #60 결정 (B): 완성 콜라주는 확정 — 재진입 시 서버 완성 상태를 복원한다. /my 목록(공개+비공개,
+  // 서버 is_public·signed URL 포함)에서 이 챌린지의 완성 제출을 찾는다. submittedId(방금 제출)는
+  // 로컬 state라 재마운트 시 소실되므로, 이 조회가 "이미 제출함(확정)" 표시의 서버 권위 소스다.
+  const { data: mySubmissions, isPending: isMyListPending } = useMySubmissions()
+  const completedItem =
+    mySubmissions?.items.find((item) => item.challenge.id === challenge.id) ?? null
 
   // 슬롯 초기화 (idempotent — 이미 같은 challenge이면 store가 유지)
   useEffect(() => {
@@ -242,7 +249,10 @@ function CollagePreviewView({ challenge }: CollagePreviewViewProps) {
    * 순차 실행한다. 전 단계가 멱등이라 실패 시 같은 버튼으로 처음부터 재시도해도 안전하다.
    */
   const handleSubmit = async () => {
-    if (!exportReady || submitMutation.isPending || submittedId) return
+    // completedItem·isMyListPending 가드: 확정된 제출의 재제출 차단(#60 (B)) + 복원 조회 중 오클릭 방지.
+    // 서버도 completed 재제출을 no-op로 막지만(submit-collage 멱등 단축), UI에서 1차로 막는다.
+    if (!exportReady || submitMutation.isPending || submittedId || completedItem || isMyListPending)
+      return
 
     setSubmitError(null)
     try {
@@ -282,6 +292,50 @@ function CollagePreviewView({ challenge }: CollagePreviewViewProps) {
     } finally {
       setSubmitProgress(null)
     }
+  }
+
+  // ─────────────────────────────────────────────
+  // 이미 완성한 챌린지 — 확정 화면 (#60 결정 (B))
+  // ─────────────────────────────────────────────
+  // 재진입(재마운트) 시 로컬 submittedId가 없어도 서버 완성 상태를 복원해 재제출 UI를 막는다.
+  // 로컬 슬롯(IndexedDB) 유무와 무관하게 동작해야 하므로 슬롯 폴백보다 먼저 판정한다.
+  // 콜라주·is_public은 /my 목록의 서버 값(signed URL 포함)을 그대로 쓴다.
+  if (!submittedId && completedItem) {
+    return (
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-background p-6 text-center">
+        <div
+          role="status"
+          className="w-full max-w-sm space-y-3 rounded-lg bg-primary/10 px-4 py-5 text-sm text-primary"
+        >
+          <p className="text-base font-medium">이미 완성한 콜라주예요</p>
+          {completedItem.collage_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={completedItem.collage_url}
+              alt="완성된 콜라주"
+              className="mx-auto w-40 rounded-lg ring-1 ring-black/10"
+            />
+          )}
+          <p>
+            {completedItem.submission.is_public
+              ? "오늘의 피드에 공개돼요."
+              : "비공개로 저장돼 있어요."}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            완성한 콜라주는 확정돼요. 공개 여부는 마이 탭에서 바꿀 수 있어요.
+          </p>
+        </div>
+        <Link href="/feed/today" className={cn(buttonVariants({ size: "lg" }), "w-full max-w-sm")}>
+          피드 보러가기
+        </Link>
+        <Link
+          href="/my"
+          className="text-sm text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground"
+        >
+          마이에서 공개 여부 바꾸기
+        </Link>
+      </div>
+    )
   }
 
   // ─────────────────────────────────────────────
@@ -460,6 +514,9 @@ function CollagePreviewView({ challenge }: CollagePreviewViewProps) {
                 ? "오늘의 피드에 공개돼요."
                 : "비공개로 저장했어요."}
             </p>
+            <p className="text-xs text-muted-foreground">
+              완성한 콜라주는 확정돼요. 공개 여부는 마이 탭에서 바꿀 수 있어요.
+            </p>
             {submittedDetail?.collage_url && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -491,7 +548,8 @@ function CollagePreviewView({ challenge }: CollagePreviewViewProps) {
             <Button
               size="lg"
               className="w-full"
-              disabled={!exportReady || submitMutation.isPending}
+              // isMyListPending: 완성 상태 복원 조회가 끝나기 전 제출 방지 (#60 — 확정 여부 미확인 상태)
+              disabled={!exportReady || submitMutation.isPending || isMyListPending}
               aria-label={
                 submitMutation.isPending ? submitProgressLabel(submitProgress) : "제출하기"
               }
@@ -513,12 +571,15 @@ function CollagePreviewView({ challenge }: CollagePreviewViewProps) {
           {isExporting ? "저장 중…" : "저장하기"}
         </Button>
 
-        <Link
-          href={`/challenge/${challenge.id}`}
-          className="block w-full py-2 text-center text-sm text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground"
-        >
-          다시 수정
-        </Link>
+        {/* 완성 후에는 글자 재수집이 막히므로(#60 (B): 확정) 수정 동선을 숨긴다 */}
+        {!submittedId && (
+          <Link
+            href={`/challenge/${challenge.id}`}
+            className="block w-full py-2 text-center text-sm text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground"
+          >
+            다시 수정
+          </Link>
+        )}
       </section>
     </div>
   )
