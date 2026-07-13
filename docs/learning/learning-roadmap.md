@@ -1363,6 +1363,19 @@ Phase 5+ (프로덕션 운영)
 - [x] `metadataBase`로 og:image **절대 URL**을 자동화하는 이유와, 비공개/미존재 시 og:image 미포함 + noindex를 설명할 수 있다
 - [x] `useSyncExternalStore`(서버 스냅샷 false)로 hydration-safe하게 Web Share 지원을 감지하는 이유와, 클립보드 폴백·인라인 피드백·AbortError 조용한 무시를 설명할 수 있다
 
+#### Phase 3 Day 10에서 추가로 익힌 것 (통합 검증 — 기준선 남기기)
+> 학습 노트: `docs/learning/phase-3-day-10.md` · 산출물: `docs/verification/phase3-integration.md`, `scripts/measure-perf.ts`
+- [x] 통합 검증 Day의 산출물이 코드가 아니라 "기대 동작의 표"(가시성 매트릭스·invalidation map·성능 수치)이며, Phase 4~5 회귀를 감이 아니라 대조로 판정하는 **기준선(baseline)**임을 설명할 수 있다 (`src/` 무변경 + 값과 재실행 스크립트를 짝으로)
+- [x] 크로스 유저 **가시성 매트릭스**(상태 4 × 뷰어 3 × 표면 5)를 기대값+검증태그(`[UI]/[API]/[curl]/[RLS]/[유닛]`)로 먼저 못박고 전 셀을 실측하는 이유를 설명할 수 있다 (빈 칸 = 안 본 조합)
+- [x] **캐시의 사용자 국소성**(A의 invalidate는 A 브라우저만 비움, B는 staleTime+트리거까지 잔존=정상"느림", 재진입 후에도 잔존=고장; `/s`·OG는 서버 판정이라 즉시)의 판정선을 설명할 수 있다
+- [x] 소형 테이블 Seq Scan이 인덱스 고장이 아니라 플래너 정상 선택임을, `enable_seqscan=off`(트랜잭션 내+롤백)로 인덱스 유효성을 분리 판정하는 법과 함께 설명할 수 있다 (`measure-perf.ts:102-115`)
+- [x] 성능 측정의 함정 4종(콜드/웜 분리, p50/p95, 단일 표본의 위험=재측정 전 결론 금지, 왕복 지배 vs 실행 지배)을 A5 콜드 3,995ms·A6 단일표본 10.6s·Q1 왕복17ms/실행0.14ms로 설명할 수 있다
+- [x] 존재 은폐를 **RLS·앱·HTTP 전 레이어**에서 같은 답(404)으로 확인하는 이유(한 층만 사유를 흘려도 enumeration 뚫림)를 설명할 수 있다
+- [x] read-only 프로브의 안전성 카테고리 차이(measure-perf=순수 read-only SELECT/EXPLAIN/list vs verify-rls=자체 정리형 savepoint 롤백+finally 삭제, 순 변화 0)를 설명할 수 있다
+- [x] E2E 자동화의 신뢰 경계(합성 PointerEvent가 `setPointerCapture` 등에서 실제 입력과 다름 → 크롭 드래그 자동화 실패 → 신뢰 입력·오프라인은 사람 체크리스트로 나누는 하이브리드 E2E, 한계는 명시 기록)를 설명할 수 있다
+- [x] 화면 간 상태 정합성(같은 서버 상태를 아는 화면 #72와 모르는 화면 #78이 공존하면 모순; V-1 #74도 완성 소비 캐시 feed 누락으로 같은 부류)과 "소비 화면·캐시 전체 열거" 점검법을 설명할 수 있다
+- [x] 워크트리 stale 로컬 main ref(874eaae)로 `git diff main` 시 대규모 가짜 회귀가 나는 함정과, `rev-parse`로 기준 검증+`git diff origin/main` 사용을 설명할 수 있다
+
 ### Phase 4 체크리스트
 - [ ] PostHog에서 이벤트를 보내고 대시보드에서 확인할 수 있다
 - [ ] 퍼널 분석의 의미를 설명할 수 있다

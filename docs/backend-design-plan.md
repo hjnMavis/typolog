@@ -1059,6 +1059,20 @@ type ApiError = {
 | (부수) 파일 예산 | 전 유닛 완화 승인(사용자, 2026-06-19). **마이그레이션·정책 0**(proxy 공개 경계·anon 정책·SHARE TTL 전부 Day 1~6 기존, 화면·OG만 추가). `SharedSubmission` 타입은 헬퍼에 co-locate(`types/api.ts` 미변경 — 서버 직접 호출이라 와이어 타입 아님) |
 | (후속) 백로그·E2E 도출 | 제출 lifecycle 정합성(완성 후 재제출 no-op·상태 복원·공개 전환) **#60** / 전역 네비게이션 **#61** / 페이지 IA 논의(+계정 표시) **#62** / 피드 카드→공유 진입 **#63**. 카톡·X 실제 미리보기·모바일 Web Share는 배포·실기기 시점 |
 
+### Day 10 확정 결정 (게이트 A 통과, 2026-07-13) — 통합 검증 + Day 10.5 신설
+
+| 항목 | 결정 |
+|------|------|
+| (a) 검증 산출물 | **`docs/verification/phase3-integration.md` 신규** — 크로스 유저 가시성 매트릭스(draft/공개완성/비공개완성/hidden × 본인/타인/anon × 피드·`/my`·`/s`·OG·S4)·invalidation map·성능 측정치·셀별 검증 결과를 한 문서로. Phase 4~5 회귀 검증의 기준선으로 재사용. QA 리뷰는 관례대로 `docs/reviews/phase3-day10-qa-review.md` 별도 |
+| (b) 크로스 유저 E2E | Day 9 확립 패턴 — headed browse=보조계정(사용자 직접 로그인) + 사용자 브라우저=본계정, anon은 비로그인 컨텍스트. **원상복구 범위**: 좋아요·닉네임·공개 토글은 원복 / 오늘 제출 2건은 의도된 잔존(DELETE 차단·챌린지당 1인 1제출) / 신고는 1건만 수행·기록(행 삭제는 reports 정책상 사용자가 대시보드에서 결정) |
+| (c) 성능 측정·합격선 | 피드 API 웜 10회 **p95 < 1s** / 화면 초기 로딩 < 3s(testing-strategy #11) / EXPLAIN으로 `idx_submissions_feed` Index Scan 확인 / 업로드 체인 실측(#50 근거 데이터 — 합격선 없음) / `/api/me/submissions` p95 < 1s / 토글 후 `['feed']` invalidate 비용 관찰. read-only 프로브 **`scripts/measure-perf.ts` 커밋**(env 값 미출력 — 시간·플랜만 출력) |
+| (d) #50 처분 | Day 10 = **측정 + 데이터 첨부 + 구현 계획 셋업**(동시성 cap·진행 표시 전환·실패 처리 전략)까지. 구현·검증은 **Day 10.5(#73)** — 통합 검증 Day에 제출 파이프라인 변경 금지 |
+| (e) #48 처분 | **Day 10.5(#73) 이관.** Day 10에서는 중복 신고 현황 실측·기록만(UNIQUE 도입 전 정리 대상 근거 데이터) |
+| (f) #40 처분 | **A**(오프라인/에러 UI)=Phase 4 이관, Day 10은 재현·기록 / **B**(restore race M-01)=Day 10 재현 시도 — Critical·High면 즉시 수정, 아니면 Day 10.5 / **C**(avatars)=계속 보류(아바타 업로드 MVP 제외 유지) / **D**(Storage 고아)=측정 Day 10 · 일회성 정리 Day 10.5 · 정기 cleanup 잡 Phase 4 |
+| (g) 버그 처리 기준 | **Critical/High = 즉시 수정**(게이트 B 차단) / **Medium = 이슈화 후 Day 10.5(#73) 이관** / Low = 검증 문서에 기록만. 크로스 유저 반영이 staleTime(60s) 이내로 지연되는 것은 정상 동작으로 기록(TanStack 캐시의 사용자 국소성 — 버그 아님). 단 `/s`·OG는 서버 판정이라 토글 즉시 404여야 함 |
+| (h) 작업 단위 | **U1** 검증 문서+측정 스크립트(+문서 동기화) / **U2** 발견 버그 fix(조건부 — Critical/High 발생 시) — 독립 PR, 스택 없음. U3(#48·#50 구현)은 두지 않음(Day 10.5로) |
+| (신설) **Day 10.5** | Phase 3→4 사이 **프로젝트 검수 Day**(#73) — #50 병렬화 구현·#48 reports UNIQUE·#40-B(조건부)·#40-D 일회성 정리·Day 10 이슈화 Medium 버그 일괄 처리. 3-게이트 사이클 동일 적용 |
+
 ### Phase 2 구현 순서 (Day 1~5 + Day 4.5)
 
 ```
@@ -1107,7 +1121,7 @@ Day 5: 검증 + 마무리
 └── 2-23. .env.local.example 정리
 ```
 
-### Phase 3 구현 순서 (5일)
+### Phase 3 구현 순서 (5일 + 검수 Day 10.5)
 
 ```
 Day 6: 피드
@@ -1137,6 +1151,12 @@ Day 10: 통합 검증
 ├── 3-16. 전체 플로우 점검
 ├── 3-17. 크로스 유저 시나리오 검증
 └── 3-18. 성능 기본 점검 (피드 쿼리 속도)
+
+Day 10.5: 마무리 검수 (Phase 4 진입 전, #73)
+├── #50 글자 업로드 순차→병렬화 구현 (Day 10 측정 데이터 기반)
+├── #48 reports UNIQUE(reporter_id, submission_id) 마이그레이션
+├── #40-B restore race (Day 10 미해소 시) · #40-D Storage 고아 일회성 정리
+└── Day 10 검증에서 이슈화된 Medium 버그 일괄 처리
 ```
 
 ### 의존 관계 그래프
