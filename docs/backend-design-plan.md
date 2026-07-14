@@ -225,7 +225,7 @@ CREATE TABLE reports (
 ```
 
 **설계 포인트**:
-- 중복 신고 허용 (UNIQUE 없음, MVP 단순화)
+- ~~중복 신고 허용 (UNIQUE 없음, MVP 단순화)~~ → **Day 10.5(#48)에서 `UNIQUE(reporter_id, submission_id)` 도입** (마이그레이션 0005, 기존 중복 선정리 포함. `createReport`는 `onConflictDoNothing` → `REPORT_ALREADY_EXISTS`)
 - 자유 텍스트 사유. 카테고리 분류 미적용
 - 신고 내역은 일반 사용자 조회 불가 (관리자만)
 - 처리: 관리자가 SQL로 확인 → `submissions.status = 'hidden'` 수동 처리
@@ -642,6 +642,15 @@ CREATE POLICY "collages_write"
   ON storage.objects FOR INSERT
   TO authenticated
   WITH CHECK (
+    bucket_id = 'collages'
+    AND (storage.foldername(name))[1] = (SELECT auth.uid())::TEXT
+  );
+
+-- 본인만 덮어쓰기 (A6 재시도의 같은 path upsert — Day 10.5 #80에서 누락 발견, 마이그레이션 0006 추가)
+CREATE POLICY "collages_update"
+  ON storage.objects FOR UPDATE
+  TO authenticated
+  USING (
     bucket_id = 'collages'
     AND (storage.foldername(name))[1] = (SELECT auth.uid())::TEXT
   );
@@ -1072,6 +1081,18 @@ type ApiError = {
 | (g) 버그 처리 기준 | **Critical/High = 즉시 수정**(게이트 B 차단) / **Medium = 이슈화 후 Day 10.5(#73) 이관** / Low = 검증 문서에 기록만. 크로스 유저 반영이 staleTime(60s) 이내로 지연되는 것은 정상 동작으로 기록(TanStack 캐시의 사용자 국소성 — 버그 아님). 단 `/s`·OG는 서버 판정이라 토글 즉시 404여야 함 |
 | (h) 작업 단위 | **U1** 검증 문서+측정 스크립트(+문서 동기화) / **U2** 발견 버그 fix(조건부 — Critical/High 발생 시) — 독립 PR, 스택 없음. U3(#48·#50 구현)은 두지 않음(Day 10.5로) |
 | (신설) **Day 10.5** | Phase 3→4 사이 **프로젝트 검수 Day**(#73) — #50 병렬화 구현·#48 reports UNIQUE·#40-B(조건부)·#40-D 일회성 정리·Day 10 이슈화 Medium 버그 일괄 처리. 3-게이트 사이클 동일 적용 |
+
+### Day 10.5 확정 결정 (게이트 A 통과, 2026-07-13) — 마무리 검수
+
+| 항목 | 결정 |
+|------|------|
+| (a) 범위 | #74(feed invalidate, 테스트 우선) · #78(수집 화면 확정 리다이렉트 + 로컬 슬롯·IDB 정리) · #76(신고 아이콘 Flag) · **#77 채택**(마이 카드 확대 라이트박스) · #48(reports UNIQUE) · #50(1단계 프로파일링 확정, 병렬화 조건부) · #40-B(코드 재검토) |
+| (b) #48 절차 | 중복 1행 선정리 DELETE를 **마이그레이션(0005) 안에 포함** — 적용 자체가 사용자 실행이라 원칙 정합, 선정리→제약 원자적. `createReport`는 `onConflictDoNothing` → `REPORT_ALREADY_EXISTS` |
+| (c) #50 방법·판정 | 자체 정리형 `scripts/profile-collage-upload.ts`(주) + collage 라우트 Server-Timing 계측(보조). **실측: 웜 업로드 p50 164ms — A6 10.6s는 이상치 판명** → 조건 ②b 충족으로 **글자 병렬화 구현**(워커 풀 cap 3, 완료 누적 진행 표시, 실패분만 1회 재시도). 웜업 프리워밍은 콜드 ~281ms 실측으로 불필요 판명 |
+| (d) #40-B 판정 | restore()의 시작 시점 스냅샷 순회가 복원 중 슬롯 교체와 경합하는 창 실재 → **수정**(현재 상태 재확인 가드, `CaptureClient.tsx`) |
+| (e) 발견 버그 기준 | Day 10 결정 ⑦ 승계 — Critical/High 즉시 수정 / Medium 이슈화(이관처 **Phase 4**) / Low 기록. 실적용: **#80**(collages UPDATE 정책 부재 — 재시도 영구 불능) High 판정 → 마이그레이션 0006 + verify-rls 프로브 2종으로 즉시 수정 |
+| (f) 검증 기준 | 수정별 해당 셀 재검증 + Day 마지막 `docs/verification/phase3-integration.md` §7 전체 1회 재실행(verify-rls 39프로브·measure-perf·인증 fetch 루프) |
+| (g) 작업 단위 | U1 정합성(#74+#78+#40-B) / U2 UX(#76+#77) / U3 #48(분리 금지 한 PR) / U4 #50+#80 — origin/main 기준 순차 머지(U2→U3, U1→U4는 공유 파일 rebase) |
 
 ### Phase 2 구현 순서 (Day 1~5 + Day 4.5)
 
