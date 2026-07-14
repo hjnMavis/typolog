@@ -57,6 +57,9 @@ export function useSubmitCollage() {
       // 완성 제출은 /my 목록의 멤버십을 바꾼다 — 미리보기 재진입 시 완성 상태 복원(#60)이
       // stale 목록 때문에 놓치지 않도록 함께 무효화한다.
       void queryClient.invalidateQueries({ queryKey: ['my', 'submissions'] });
+      // 피드 멤버십도 바뀐다(내 카드가 새로 등장) — staleTime(60s) 이내에 피드를 봤던 경우
+      // "피드 보러가기"에서 내 카드가 안 보이는 갭(V-1, #74)을 막는다. S4 토글과 동일 근거.
+      void queryClient.invalidateQueries({ queryKey: ['feed'] });
     },
   });
 }
