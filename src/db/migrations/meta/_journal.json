@@ -43,6 +43,13 @@
       "when": 1783946068787,
       "tag": "0005_same_phil_sheldon",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783946675467,
+      "tag": "0006_collages_allow_owner_update",
+      "breakpoints": true
     }
   ]
 }

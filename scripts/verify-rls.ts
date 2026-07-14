@@ -477,6 +477,23 @@ async function runStorageMatrix(
     record('Part2', 'collages: A는 본인 경로에 업로드 가능 (공개·비공개 2건)', 'success',
       upPub.error || upPriv.error ? 'error' : 'success', !upPub.error && !upPriv.error);
 
+    // #80 회귀(Day 10.5): 같은 path 재업로드(upsert 덮어쓰기)는 storage.objects UPDATE 경로라
+    // collages_update 정책(0006)이 필요하다 — A6 재시도("실패 시 처음부터 재실행")의 전제.
+    // 기존 프로브는 매 실행 새 경로만 업로드해 이 경로가 한 번도 발동되지 않았다.
+    const upOverwrite = await clientA.storage.from('collages').upload(collagePubPath, PNG_1x1, {
+      contentType: 'image/png',
+      upsert: true,
+    });
+    record('Part2', 'collages[#80]: A는 본인 콜라주 같은 path 재업로드(덮어쓰기) 가능', 'success',
+      upOverwrite.error ? 'error' : 'success', !upOverwrite.error);
+    // 짝 음성: 새 정책이 타인 덮어쓰기까지 열지 않았는지 (USING 본인 경로 한정)
+    const upForeignOverwrite = await clientB.storage.from('collages').upload(collagePubPath, PNG_1x1, {
+      contentType: 'image/png',
+      upsert: true,
+    });
+    record('Part2', 'collages[#80]: B는 A의 콜라주 덮어쓰기 차단', 'blocked',
+      upForeignOverwrite.error ? 'blocked' : 'allowed', Boolean(upForeignOverwrite.error));
+
     // 업로드가 fixture의 전제다. 하나라도 실패하면 다운로드 차단 케이스가
     // "정책 차단"이 아니라 "객체 부재"로 통과(거짓 양성)될 수 있으므로 다운로드를 스킵한다 (M-4).
     if (upLetter.error || upPub.error || upPriv.error) {
