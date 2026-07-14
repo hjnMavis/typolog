@@ -22,7 +22,9 @@ interface ReportDialogProps {
 }
 
 // 결과 코드 → 사용자 메시지 (서버 결과 객체 기반, throw 메시지에 의존하지 않음)
-function resultMessage(code: 'UNAUTHENTICATED' | 'INVALID' | 'SELF_REPORT' | 'NOT_FOUND'): string {
+function resultMessage(
+  code: 'UNAUTHENTICATED' | 'INVALID' | 'SELF_REPORT' | 'NOT_FOUND' | 'REPORT_ALREADY_EXISTS',
+): string {
   switch (code) {
     case 'SELF_REPORT':
       return '본인 글은 신고할 수 없어요.';
@@ -32,6 +34,8 @@ function resultMessage(code: 'UNAUTHENTICATED' | 'INVALID' | 'SELF_REPORT' | 'NO
       return '이미 삭제된 글이에요.';
     case 'INVALID':
       return '신고 사유를 다시 확인해 주세요.';
+    case 'REPORT_ALREADY_EXISTS':
+      return '이미 신고한 글이에요.';
   }
 }
 

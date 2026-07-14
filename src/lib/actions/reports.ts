@@ -12,10 +12,14 @@ import { createReportSchema } from '@/lib/validations/report';
 // 다이얼로그가 사유별 메시지를 보이려면 throw가 아니라 반환값으로 분기해야 한다.
 export type CreateReportResult =
   | { ok: true }
-  | { ok: false; code: 'UNAUTHENTICATED' | 'INVALID' | 'SELF_REPORT' | 'NOT_FOUND' };
+  | {
+      ok: false;
+      code: 'UNAUTHENTICATED' | 'INVALID' | 'SELF_REPORT' | 'NOT_FOUND' | 'REPORT_ALREADY_EXISTS';
+    };
 
 // S2 createReport — 신고 생성(reports INSERT). §6.2/§1.6.
-// 정책(게이트 A 결정 5): 본인 글 신고 차단(self-report). 중복 신고는 현재 허용 — 이슈 #48로 이관.
+// 정책(게이트 A 결정 5): 본인 글 신고 차단(self-report). 중복 신고는 UNIQUE(reporter, submission)
+// 제약이 원천 차단(#48, Day 10.5) — onConflictDoNothing으로 멱등 처리해 경합에도 안전하다.
 // DB는 Drizzle 직결(RLS 우회)이라 reporter_id 본인 강제·소유권 검증을 코드로 한다.
 export async function createReport(input: {
   submissionId: string;
@@ -50,11 +54,21 @@ export async function createReport(input: {
     return { ok: false, code: 'SELF_REPORT' };
   }
 
-  await db.insert(reports).values({
-    reporter_id: user.id,
-    submission_id: submissionId,
-    reason,
-  });
+  // UNIQUE(reporter_id, submission_id) 충돌 시 조용히 스킵하고 반환 0행으로 감지한다 —
+  // "확인 후 삽입"과 달리 동시 요청 경합에서도 정확히 1건만 적재된다 (#48).
+  const inserted = await db
+    .insert(reports)
+    .values({
+      reporter_id: user.id,
+      submission_id: submissionId,
+      reason,
+    })
+    .onConflictDoNothing({ target: [reports.reporter_id, reports.submission_id] })
+    .returning({ id: reports.id });
+
+  if (inserted.length === 0) {
+    return { ok: false, code: 'REPORT_ALREADY_EXISTS' };
+  }
 
   return { ok: true };
 }
