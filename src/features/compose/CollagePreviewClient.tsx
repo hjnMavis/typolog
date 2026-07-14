@@ -36,7 +36,8 @@ function submitProgressLabel(progress: SubmitProgress | null): string {
     case "creating":
       return "제출 준비 중…"
     case "uploading-letters":
-      return `글자 업로드 중 ${progress.current ?? 0}/${progress.total ?? 0}`
+      // #50 병렬 업로드 — 순번 대신 완료 누적 수 표시
+      return `글자 ${progress.total ?? 0}장 업로드 중… (${progress.current ?? 0}/${progress.total ?? 0})`
     case "uploading-collage":
       return "콜라주 업로드 중…"
     case "completing":
