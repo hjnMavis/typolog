@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useChallengeStore } from "@/stores/challenge-store"
-import { getImageBlob } from "@/lib/image/indexed-image-store"
+import { getImageBlob, deleteImageBlobs } from "@/lib/image/indexed-image-store"
 import { loadImage } from "@/lib/image/crop-image"
 import { TodayChallengeGate } from "@/features/challenge/TodayChallengeGate"
 import { useSubmissionDetail, useSubmitCollage } from "@/hooks/use-submission"
@@ -107,6 +107,25 @@ function CollagePreviewView({ challenge }: CollagePreviewViewProps) {
     initSlots(challenge)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- challenge.id가 바뀔 때만 재초기화
   }, [challenge.id, initSlots])
+
+  // #78: 확정(완성) 상태로 진입하면 이 챌린지의 로컬 draft(슬롯 메타 + IDB Blob)를 정리한다.
+  // 수집 화면 리다이렉트(#78 CaptureClient)와 짝 — 잔존 로컬 데이터가 "편집되는 것처럼
+  // 보이는" 혼란의 뿌리를 제거한다. 방금 제출한 화면(submittedId)은 콜라주 카드가 로컬
+  // URL을 계속 쓰므로 제외하고, 다음 확정 화면 진입 때 정리된다.
+  const shouldCleanupLocalDraft = !submittedId && completedItem !== null
+  useEffect(() => {
+    if (!shouldCleanupLocalDraft) return
+    const store = useChallengeStore.getState()
+    if (store.challengeId !== challenge.id) return
+    const keys = store.slots
+      .map((slot) => slot.imageKey)
+      .filter((key): key is string => key !== null)
+    if (keys.length === 0) return
+    // 메타를 먼저 비워 stale 편집 진입을 즉시 차단하고, Blob 삭제는 fire-and-forget
+    // (실패해도 메타가 비워져 화면에 노출되지 않는다 — handleResetDraft와 동일 방침)
+    store.resetDraft()
+    void deleteImageBlobs(keys).catch(() => {})
+  }, [shouldCleanupLocalDraft, challenge.id])
 
   // IndexedDB에서 Blob을 읽어 Object URL을 '항상 새로' 생성한다 (SSR-safe: useEffect 내부).
   // store의 slot.imageDataUrl은 capture 화면 언마운트 시 revoke될 수 있으므로 재사용하지 않는다.

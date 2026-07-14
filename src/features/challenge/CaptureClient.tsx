@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState, useCallback } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useChallengeStore } from "@/stores/challenge-store"
+import { useMySubmissions } from "@/hooks/use-my-submissions"
 import { LetterSlot } from "./LetterSlot"
 import { ImagePickerSheet } from "./ImagePickerSheet"
 import { ImageCropperModal } from "./ImageCropperModal"
@@ -27,6 +29,29 @@ interface CaptureClientProps {
  * 준비되면 CaptureView(기존 Phase 1 수집 UI)에 challenge를 내려준다 (Day 4.5 mock→real).
  */
 export function CaptureClient({ challengeId }: CaptureClientProps) {
+  const router = useRouter()
+  // #78: 완성(확정)된 챌린지는 수집 화면 진입로 자체를 차단하고 확정 화면(미리보기)으로
+  // 보낸다. #72(미리보기 확정 복원)와 같은 서버 권위 소스(['my','submissions'])를 재사용 —
+  // /my 목록은 completed만 반환하므로 목록에 있으면 곧 확정이다.
+  const { data: mySubmissions, isPending: isMyListPending } = useMySubmissions()
+  const isCompleted =
+    mySubmissions?.items.some((item) => item.challenge.id === challengeId) ?? false
+
+  useEffect(() => {
+    if (isCompleted) router.replace(`/challenge/${challengeId}/preview`)
+  }, [isCompleted, challengeId, router])
+
+  // 완성 여부 확인 전(또는 리다이렉트 대기 중)에는 수집 UI를 렌더하지 않는다 —
+  // 확정된 챌린지의 슬롯이 잠깐이라도 편집 가능해 보이는 것(#78의 뿌리)을 막는다.
+  // 조회 실패 시에는 수집 화면으로 진행한다(fail-open) — 재제출은 서버가 차단한다(#60-B).
+  if (isMyListPending || isCompleted) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center p-6" aria-busy="true">
+        <p className="text-sm text-muted-foreground">불러오는 중…</p>
+      </div>
+    )
+  }
+
   return (
     <TodayChallengeGate challengeId={challengeId}>
       {(challenge) => <CaptureView challenge={challenge} />}
@@ -88,6 +113,16 @@ function CaptureView({ challenge }: CaptureViewProps) {
           try {
             const blob = await getImageBlob(slot.imageKey)
             if (!isMounted) return
+            // #40-B: 이 루프는 시작 시점 스냅샷을 순회하므로, IDB 읽기(await) 동안 사용자가
+            // 이 슬롯을 교체·초기화했을 수 있다. 현재 상태를 재확인해 stale 복원이 교체본
+            // URL을 map에서 밀어내거나(그 URL은 revoke 경로를 잃고 누수) 옛 이미지를
+            // store에 덮어쓰는 것을 막는다.
+            const current = useChallengeStore
+              .getState()
+              .slots.find((s) => s.index === slot.index)
+            if (!current || current.imageKey !== slot.imageKey || current.imageDataUrl) {
+              continue
+            }
             if (blob) {
               const url = URL.createObjectURL(blob)
               objectUrlsRef.current.set(slot.index, url)
