@@ -12,6 +12,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Flag } from 'lucide-react';
 import { useCreateReport } from '@/hooks/use-report';
 import { REPORT_REASON_MAX } from '@/lib/validations/report';
 
@@ -78,9 +79,10 @@ export function ReportDialog({ submissionId, nickname }: ReportDialogProps) {
           <button
             type="button"
             aria-label={`${nickname}의 콜라주 신고`}
-            className="shrink-0 rounded-full px-1 text-base leading-none text-muted-foreground/60 transition-colors hover:text-muted-foreground"
+            className="shrink-0 rounded-full p-1 text-muted-foreground/60 transition-colors hover:text-muted-foreground"
           >
-            <span aria-hidden="true">⋯</span>
+            {/* #76: ⋯(더보기 관례) → Flag — 유일한 액션이 신고라 어포던스를 직접 노출 */}
+            <Flag className="size-4" aria-hidden="true" />
           </button>
         }
       />
