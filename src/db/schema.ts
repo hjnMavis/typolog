@@ -115,17 +115,24 @@ export const reactions = pgTable(
 // ─────────────────────────────────────────────
 // reports
 // ─────────────────────────────────────────────
-export const reports = pgTable('reports', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  reporter_id: uuid('reporter_id')
-    .notNull()
-    .references(() => profiles.id, { onDelete: 'cascade' }),
-  submission_id: uuid('submission_id')
-    .notNull()
-    .references(() => submissions.id, { onDelete: 'cascade' }),
-  reason: text('reason').notNull(),
-  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const reports = pgTable(
+  'reports',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    reporter_id: uuid('reporter_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'cascade' }),
+    submission_id: uuid('submission_id')
+      .notNull()
+      .references(() => submissions.id, { onDelete: 'cascade' }),
+    reason: text('reason').notNull(),
+    created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    // #48 (Day 10.5): 중복 신고 방지 — reactions와 동일한 멱등 틀(UNIQUE + onConflictDoNothing)
+    unique('reports_reporter_submission_unique').on(table.reporter_id, table.submission_id),
+  ],
+);
 
 // ─────────────────────────────────────────────
 // 추론된 타입 exports (Day 2~에서 Route Handler에 활용)

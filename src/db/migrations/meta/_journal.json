@@ -36,6 +36,13 @@
       "when": 1781107407929,
       "tag": "0004_letter_pieces_allow_jpeg",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1783946068787,
+      "tag": "0005_same_phil_sheldon",
+      "breakpoints": true
     }
   ]
 }
