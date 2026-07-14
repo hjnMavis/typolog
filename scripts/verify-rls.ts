@@ -373,6 +373,17 @@ async function runTableMatrix(sql: PgSql, A: string, B: string) {
           return { rows: 1 };
         },
       });
+      // #48 회귀(Day 10.5): 같은 (reporter, submission) 2회 신고는 UNIQUE가 차단한다.
+      // 첫 INSERT는 정상 경로(본인 신고, WITH CHECK 통과) — 둘째가 23505(unique_violation)여야 한다.
+      await probe(tx, {
+        name: 'reports[중복]: 같은 (reporter, submission) 2회 신고 차단 (UNIQUE 23505)',
+        role: 'authenticated', sub: B, expect: { kind: 'error', code: '23505' },
+        run: async (sp) => {
+          await sp`INSERT INTO reports (reporter_id, submission_id, reason) VALUES (${B}, ${sApub}, 'dup-1')`;
+          await sp`INSERT INTO reports (reporter_id, submission_id, reason) VALUES (${B}, ${sApub}, 'dup-2')`;
+          return { rows: 2 };
+        },
+      });
 
       // ── profiles ──
       await probe(tx, {
