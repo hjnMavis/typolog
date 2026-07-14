@@ -15,12 +15,25 @@ export const runtime = 'nodejs';
 
 // POST /api/submissions/[id]/collage — 콜라주 PNG 업로드 (Storage + DB, §6.3 A6, §9 Day4-(d))
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  // #50: 핸들러 내부 구간 계측 — 성공 응답에 Server-Timing 헤더로 싣는다(브라우저 DevTools에서
+  // 확인 가능). A6 총시간에서 어느 구간(인증/소유권/파싱/Storage/DB/서명)이 지배하는지 분해용.
+  // 타이밍 수치만 노출되며 인증+소유권 검증 뒤에만 응답하므로 정보 노출 위험은 없다.
+  const startedAt = performance.now();
+  const timings: [name: string, durationMs: number][] = [];
+  let lastMark = startedAt;
+  const mark = (name: string) => {
+    const now = performance.now();
+    timings.push([name, now - lastMark]);
+    lastMark = now;
+  };
+
   // 인증 우선 — 미인증은 리소스 정보를 노출하지 않고 401. 같은 server client(사용자 JWT)로 업로드한다.
   const supabase = await createClient();
   const user = await getAuthUser(supabase);
   if (!user) {
     return jsonError(401, 'UNAUTHORIZED', '로그인이 필요합니다.');
   }
+  mark('auth');
 
   const { id } = await params;
   const idParsed = submissionIdSchema.safeParse(id);
@@ -32,6 +45,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   // 소유권 — 타인 소유·미존재 모두 404로 존재 은폐 (§7.4). DB는 Drizzle이라 코드로 검증.
   const submission = await getOwnedSubmission(submissionId, user.id);
+  mark('own');
   if (!submission) {
     return jsonError(404, 'SUBMISSION_NOT_FOUND', '제출을 찾을 수 없습니다.');
   }
@@ -56,6 +70,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (imageError) {
     return jsonError(imageError.status, imageError.code, imageError.message);
   }
+  mark('form');
 
   // Storage 업로드 — 경로 첫 폴더 = 인증 사용자 id (Storage 정책 §5.2와 정렬).
   // path를 서버가 user.id로 구성하므로 타인 경로 업로드가 원천 불가하며, 조작해도 Storage 정책이 차단한다.
@@ -64,6 +79,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { error: uploadError } = await supabase.storage
     .from('collages')
     .upload(path, bytes, { contentType: 'image/png', upsert: true });
+  mark('storage');
   if (uploadError) {
     return jsonError(500, 'UPLOAD_FAILED', '콜라주 업로드에 실패했습니다.');
   }
@@ -82,6 +98,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     console.error(`submissions.collage_image_url update failed for ${path}:`, err);
     return jsonError(500, 'PERSIST_FAILED', '콜라주 정보를 저장하지 못했습니다.');
   }
+  mark('db');
   if (!updated) {
     // 소유권이 그 사이 바뀐 경합 — 존재 은폐 404.
     return jsonError(404, 'SUBMISSION_NOT_FOUND', '제출을 찾을 수 없습니다.');
@@ -89,8 +106,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   // 업로드 직후 미리보기용 signed URL(1h). 응답엔 버킷 내 원시 경로를 노출하지 않는다.
   const collageUrl = await createSignedUrl(supabase, 'collages', path, SIGNED_URL_TTL.EDIT);
+  mark('sign');
+
+  const serverTiming = [
+    ...timings.map(([name, duration]) => `${name};dur=${duration.toFixed(1)}`),
+    `total;dur=${(performance.now() - startedAt).toFixed(1)}`,
+  ].join(', ');
   return NextResponse.json(
     { submission: serializeSubmission(updated), collage_url: collageUrl },
-    { status: 200 },
+    { status: 200, headers: { 'Server-Timing': serverTiming } },
   );
 }
